@@ -1,0 +1,37 @@
+recalculate_forecast:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: pstryk_ai
+recalculate_schedule:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: pstryk_ai
+retrain_model:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: pstryk_ai
+run_backtest:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: pstryk_ai
+import_history:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: pstryk_ai
+    days:
+      default: 365
+      selector:
+        number:
+          min: 30
+          max: 1100
+          unit_of_measurement: d
