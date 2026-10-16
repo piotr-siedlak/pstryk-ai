@@ -1,0 +1,153 @@
+# Pstryk AI – native dashboard (no HACS cards required).
+# Settings → Dashboards → Add dashboard → ⋮ → Raw configuration editor → paste.
+# Legend: ● confirmed Pstryk price, ◆ published market price (estimated customer price), ○ forecast, · unknown.
+title: Pstryk AI
+views:
+  - title: Energia
+    path: pstryk-ai
+    icon: mdi:flash
+    cards:
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+          - type: tile
+            entity: sensor.pstryk_ai_current_buy_price
+            name: Cena teraz
+          - type: tile
+            entity: sensor.pstryk_ai_next_hour_price
+            name: Za godzinę
+          - type: tile
+            entity: binary_sensor.pstryk_ai_cheap_now
+            name: Tanio teraz
+          - type: tile
+            entity: sensor.pstryk_ai_average_today
+          - type: tile
+            entity: sensor.pstryk_ai_average_tomorrow
+          - type: tile
+            entity: binary_sensor.pstryk_ai_tomorrow_confirmed
+      - type: markdown
+        title: Dziś i jutro (godzinowo)
+        content: |
+          {%- set icon = {'ACTUAL_PSTRYK':'●','PUBLISHED_TGE':'◆','MODEL_FORECAST':'○','FALLBACK_FORECAST':'○','UNAVAILABLE':'·'} %}
+          {%- set cheap = state_attr('sensor.pstryk_ai_cheapest_3h','hours') or [] %}
+          {%- set t = state_attr('sensor.pstryk_ai_average_today','prices') or [] %}
+          {%- set m = state_attr('sensor.pstryk_ai_average_tomorrow','prices') or [] %}
+          | Godz. | Dziś | Jutro |
+          |---|---|---|
+          {% for i in range([t|length, m|length]|max) -%}
+          {%- set a = t[i] if i < t|length else none -%}
+          {%- set b = m[i] if i < m|length else none -%}
+          | {{ as_local(as_datetime((a or b).start)).strftime('%H:%M') }} | {% if a %}{{ icon[a.source] }} {{ '%.3f' % a.value if a.value is not none else '–' }}{{ ' ⭐' if a.start in cheap }}{% endif %} | {% if b %}{{ icon[b.source] }} {{ '%.3f' % b.value if b.value is not none else '–' }}{{ ' ⭐' if b.start in cheap }}{% endif %} |
+          {% endfor %}
+          ● potwierdzona Pstryk · ◆ opublikowana giełda (szacunek) · ○ prognoza · ⭐ najtańsze 3 h
+      - type: markdown
+        title: Prognoza 7 dni
+        content: |
+          {%- set s = state_attr('sensor.pstryk_ai_forecast_7d','series') %}
+          {%- if s %}
+          | Dzień | Śr. cena | P10–P90 | Potwierdzone | Pewność |
+          |---|---|---|---|---|
+          {% for d in range(8) -%}
+          {%- set day = (now() + timedelta(days=d)).date() -%}
+          {%- set ns = namespace(v=[], lo=[], hi=[], c=0, conf=[]) -%}
+          {%- for i in range(s.start|length) if s.value[i] is not none and as_local(as_datetime(s.start[i])).date() == day -%}
+          {%- set ns.v = ns.v + [s.value[i]] -%}
+          {%- set ns.lo = ns.lo + [s.p10[i] if s.p10[i] is not none else s.value[i]] -%}
+          {%- set ns.hi = ns.hi + [s.p90[i] if s.p90[i] is not none else s.value[i]] -%}
+          {%- set ns.c = ns.c + (1 if s.source[i] == 'ACTUAL_PSTRYK' else 0) -%}
+          {%- if s.confidence[i] is not none %}{% set ns.conf = ns.conf + [s.confidence[i]] %}{% endif -%}
+          {%- endfor -%}
+          {%- if ns.v -%}
+          | {{ as_local(as_datetime(day ~ 'T12:00:00')).strftime('%a %d.%m') }} | {{ '%.3f' % (ns.v|sum / ns.v|length) }} | {{ '%.2f' % (ns.lo|sum / ns.lo|length) }}–{{ '%.2f' % (ns.hi|sum / ns.hi|length) }} | {{ ns.c }}/{{ ns.v|length }} h | {{ ((ns.conf|sum / ns.conf|length) * 100)|round(0)|int ~ '%' if ns.conf else '–' }} |
+          {% endif -%}
+          {%- endfor %}
+          {%- else %}
+          Brak prognozy
+          {%- endif %}
+      - type: entities
+        title: Najtańsze okna
+        entities:
+          - sensor.pstryk_ai_cheapest_hour_today
+          - sensor.pstryk_ai_cheapest_hour_tomorrow
+          - sensor.pstryk_ai_cheapest_3h
+          - sensor.pstryk_ai_cheapest_6h
+          - sensor.pstryk_ai_cheapest_n_hours
+          - sensor.pstryk_ai_most_expensive_hour
+          - sensor.pstryk_ai_cheap_probability
+      - type: entities
+        title: Prognoza
+        entities:
+          - sensor.pstryk_ai_forecast_24h
+          - sensor.pstryk_ai_forecast_48h
+          - sensor.pstryk_ai_forecast_72h
+          - sensor.pstryk_ai_average_7d
+          - sensor.pstryk_ai_forecast_confidence
+          - sensor.pstryk_ai_forecast_accuracy
+          - select.pstryk_ai_forecast_model
+          - button.pstryk_ai_recalculate_forecast
+      - type: history-graph
+        title: Cena (historia)
+        hours_to_show: 72
+        entities:
+          - sensor.pstryk_ai_current_buy_price
+          - sensor.pstryk_ai_current_sell_price
+  - title: Bufor
+    path: pstryk-ai-bufor
+    icon: mdi:water-boiler
+    cards:
+      - type: entities
+        title: Plan bufora (doradczy)
+        entities:
+          - binary_sensor.pstryk_ai_buffer_should_heat
+          - sensor.pstryk_ai_buffer_target_temperature
+          - sensor.pstryk_ai_buffer_next_window
+          - sensor.pstryk_ai_buffer_expected_cost
+          - sensor.pstryk_ai_buffer_savings
+          - sensor.pstryk_ai_buffer_plan_reason
+          - switch.pstryk_ai_buffer_enabled
+          - switch.pstryk_ai_advisory_mode
+          - number.pstryk_ai_buffer_min_t
+          - number.pstryk_ai_buffer_max_t
+          - select.pstryk_ai_buffer_strategy
+      - type: markdown
+        title: Harmonogram grzania (48 h)
+        content: |
+          {%- set sch = state_attr('sensor.pstryk_ai_buffer_plan_reason','schedule') or [] %}
+          | Godz. | Grzanie | T [°C] | Cena | COP | Koszt |
+          |---|---|---|---|---|---|
+          {% for s in sch[:48] -%}
+          | {{ as_local(as_datetime(s.start)).strftime('%a %H:%M') }} | {{ '🔥' if s.heat else '' }} | {{ s.t_end }} | {{ '%.3f' % s.price }}{{ ' ○' if 'FORECAST' in s.source else '' }} | {{ s.cop }} | {{ '%.2f' % s.cost }} |
+          {% endfor %}
+  - title: Licznik
+    path: pstryk-ai-licznik
+    icon: mdi:meter-electric
+    cards:
+      - type: entities
+        title: Dziś
+        entities:
+          - sensor.pstryk_ai_energy_import_today
+          - sensor.pstryk_ai_energy_export_today
+          - sensor.pstryk_ai_energy_balance_today
+          - sensor.pstryk_ai_cost_today
+          - sensor.pstryk_ai_sold_value_today
+          - sensor.pstryk_ai_balance_today
+      - type: entities
+        title: Ten miesiąc
+        entities:
+          - sensor.pstryk_ai_energy_import_month
+          - sensor.pstryk_ai_energy_export_month
+          - sensor.pstryk_ai_energy_balance_month
+          - sensor.pstryk_ai_cost_month
+          - sensor.pstryk_ai_balance_month
+      - type: entities
+        title: Status
+        entities:
+          - sensor.pstryk_ai_pstryk_api_status
+          - sensor.pstryk_ai_market_data_status
+          - sensor.pstryk_ai_mqtt_status
+          - sensor.pstryk_ai_last_update
+          - switch.pstryk_ai_optimization_enabled
+          - switch.pstryk_ai_mqtt_enabled
+          - button.pstryk_ai_import_history
+          - button.pstryk_ai_retrain_model

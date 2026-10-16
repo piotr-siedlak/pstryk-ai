@@ -1,0 +1,6 @@
+[
+  {"id": "pstryk_in", "type": "mqtt in", "name": "Pstryk AI 7d", "topic": "pstryk_ai/home/prices/forecast/7d", "qos": "1", "datatype": "json", "broker": "", "wires": [["pstryk_fresh"]]},
+  {"id": "pstryk_fresh", "type": "function", "name": "discard stale + split confirmed/forecast",
+   "func": "const p = msg.payload; if (!p || new Date(p.valid_until) < new Date()) return null;\nconst d = p.data; const out = d.start.map((s, i) => ({start: s, value: d.value[i], p10: d.p10[i], p90: d.p90[i], source: d.source[i]}));\nmsg.confirmed = out.filter(x => x.source === 'ACTUAL_PSTRYK');\nmsg.forecast = out.filter(x => x.source.endsWith('FORECAST'));\nreturn msg;",
+   "outputs": 1, "wires": [[]]}
+]

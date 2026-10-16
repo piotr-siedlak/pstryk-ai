@@ -1,0 +1,37 @@
+# Example Home Assistant automations for Pstryk AI (adapt entity IDs).
+
+- alias: "Pstryk AI – powiadomienie o cenach na jutro"
+  trigger:
+    - platform: event
+      event_type: pstryk_ai_prices_confirmed
+  action:
+    - service: notify.notify
+      data:
+        title: "Ceny na jutro"
+        message: >-
+          Średnia jutro: {{ states('sensor.pstryk_ai_average_tomorrow') }} PLN/kWh,
+          najtańsze 3 h od {{ as_local(as_datetime(states('sensor.pstryk_ai_cheapest_3h'))).strftime('%H:%M') }}.
+
+- alias: "Pstryk AI – zmywarka w najtańszym oknie"
+  trigger:
+    - platform: template
+      value_template: >-
+        {{ now() >= as_datetime(states('sensor.pstryk_ai_schedule_zmywarka')) }}
+  condition:
+    - condition: state
+      entity_id: input_boolean.zmywarka_gotowa
+      state: "on"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.zmywarka
+
+- alias: "Pstryk AI – tania energia: ładowanie EV"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.pstryk_ai_cheap_now
+      to: "on"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.ladowarka_ev

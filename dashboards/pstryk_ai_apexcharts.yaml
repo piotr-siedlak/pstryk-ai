@@ -1,0 +1,46 @@
+# Optional: charts with confidence band. Requires HACS frontend card "apexcharts-card".
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Cena energii – potwierdzona vs prognoza (7 dni)
+graph_span: 7d
+span:
+  start: hour
+now:
+  show: true
+  label: teraz
+yaxis:
+  - decimals: 2
+    apex_config:
+      title: { text: PLN/kWh }
+series:
+  - entity: sensor.pstryk_ai_forecast_7d
+    name: Potwierdzona (Pstryk)
+    type: column
+    color: "#1e88e5"
+    data_generator: |
+      const s = entity.attributes.series;
+      return s.start.map((t, i) => [new Date(t).getTime(), s.source[i] === 'ACTUAL_PSTRYK' ? s.value[i] : null]);
+  - entity: sensor.pstryk_ai_forecast_7d
+    name: Giełda (szacunek)
+    type: column
+    color: "#8e24aa"
+    data_generator: |
+      const s = entity.attributes.series;
+      return s.start.map((t, i) => [new Date(t).getTime(), s.source[i] === 'PUBLISHED_TGE' ? s.value[i] : null]);
+  - entity: sensor.pstryk_ai_forecast_7d
+    name: Prognoza P50
+    type: line
+    stroke_width: 2
+    color: "#fb8c00"
+    data_generator: |
+      const s = entity.attributes.series;
+      return s.start.map((t, i) => [new Date(t).getTime(), s.source[i].endsWith('FORECAST') ? s.value[i] : null]);
+  - entity: sensor.pstryk_ai_forecast_7d
+    name: P10–P90
+    type: area
+    opacity: 0.15
+    color: "#fb8c00"
+    data_generator: |
+      const s = entity.attributes.series;
+      return s.start.map((t, i) => [new Date(t).getTime(), s.p90[i]]);
