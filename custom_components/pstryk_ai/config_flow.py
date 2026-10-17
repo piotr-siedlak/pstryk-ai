@@ -23,35 +23,78 @@ from .api.weather import WeatherClient
 from .const import (
     BUFFER_STRATEGIES,
     BUFFER_STRATEGY_COST,
+    COMMAND_BINARY,
+    COMMAND_FORMATS,
     CONF_API_KEY,
     CONF_AUTO_CALIBRATE_TARIFF,
     CONF_AUTO_RETRAIN,
+    CONF_BASE_LOAD_KW,
+    CONF_BUFFER_BOTTOM_ENTITY,
+    CONF_BUFFER_BOTTOM_KEY,
+    CONF_BUFFER_BOTTOM_TOPIC,
     CONF_BUFFER_ENABLED,
     CONF_BUFFER_MAX_T,
     CONF_BUFFER_MIN_T,
     CONF_BUFFER_STRATEGY,
     CONF_BUFFER_TARGET_T,
-    CONF_BUFFER_TEMP_ENTITY,
-    CONF_BUFFER_TEMP_KEY,
-    CONF_BUFFER_TEMP_TOPIC,
+    CONF_BUFFER_TOP_ENTITY,
+    CONF_BUFFER_TOP_KEY,
+    CONF_BUFFER_TOP_TOPIC,
     CONF_BUFFER_VOLUME_L,
     CONF_CHEAP_HOURS,
     CONF_DEVICE_PROFILES,
+    CONF_DHW_BOTTOM_ENTITY,
+    CONF_DHW_BOTTOM_KEY,
+    CONF_DHW_BOTTOM_TOPIC,
+    CONF_DHW_ENABLED,
+    CONF_DHW_HP_MODE,
+    CONF_DHW_LITERS_DAY,
+    CONF_DHW_LOSS_KW_K,
+    CONF_DHW_MAX_T,
+    CONF_DHW_MIN_T,
+    CONF_DHW_PRIORITY,
+    CONF_DHW_READY_T,
+    CONF_DHW_READY_TIMES,
+    CONF_DHW_TARGET_T,
+    CONF_DHW_TOP_ENTITY,
+    CONF_DHW_TOP_KEY,
+    CONF_DHW_TOP_TOPIC,
+    CONF_DHW_VALVE_TOPIC,
+    CONF_DHW_VOLUME_L,
+    CONF_DIST_OFFPEAK_HOURS,
+    CONF_DIST_PEAK2_HOURS,
+    CONF_DIST_RATE_OFFPEAK,
+    CONF_DIST_RATE_PEAK,
+    CONF_DIST_RATE_PEAK2,
+    CONF_DIST_TARIFF,
+    CONF_DIST_WEEKEND_OFFPEAK,
     CONF_ENERGY_MARGIN,
     CONF_ENTSOE_TOKEN,
     CONF_EUR_PLN,
     CONF_EXCISE,
     CONF_FORECAST_HORIZON_H,
     CONF_FORECAST_MODEL,
+    CONF_HEARTBEAT,
     CONF_HEAT_LOSS_COEFF,
     CONF_HISTORY_DAYS,
     CONF_HP_COP,
     CONF_HP_COP_CURVE,
     CONF_HP_ELECTRIC_KW,
+    CONF_HP_MAX_T,
+    CONF_HP_POWER_ENTITY,
+    CONF_HP_POWER_KEY,
+    CONF_HP_POWER_TOPIC,
     CONF_HP_THERMAL_KW,
     CONF_INDOOR_BASE_T,
     CONF_INPUT_MAX_AGE_MIN,
     CONF_LATITUDE,
+    CONF_LEARN_APPLY,
+    CONF_LEARN_COP,
+    CONF_LEARN_DHW_PROFILE,
+    CONF_LEARN_LOSSES,
+    CONF_LEGIONELLA_DAYS,
+    CONF_LEGIONELLA_ENABLED,
+    CONF_LEGIONELLA_T,
     CONF_LONGITUDE,
     CONF_MARKET_PROVIDER,
     CONF_MAX_SPECULATIVE_H,
@@ -65,15 +108,30 @@ from .const import (
     CONF_MQTT_QOS,
     CONF_MQTT_RETAIN,
     CONF_MQTT_TOPICS,
+    CONF_NOTIFY_FALLBACK,
+    CONF_NOTIFY_NEGATIVE,
+    CONF_NOTIFY_SERVICE,
+    CONF_NOTIFY_STALE,
+    CONF_NOTIFY_TOMORROW,
+    CONF_OPTIMIZE_ALL_IN,
     CONF_OUTDOOR_TEMP_ENTITY,
     CONF_OUTDOOR_TEMP_KEY,
     CONF_OUTDOOR_TEMP_TOPIC,
+    CONF_POWER_LIMIT_ENABLED,
+    CONF_POWER_LIMIT_KW,
+    CONF_POWER_UNIT,
     CONF_PRICE_INCLUDES_DISTRIBUTION,
     CONF_PRICE_THRESHOLD,
     CONF_PROSUMER,
     CONF_PSE_ENABLED,
+    CONF_PV_ENABLED,
+    CONF_PV_KWP,
+    CONF_PV_PR,
     CONF_RISK_AVERSION,
     CONF_SHOW_PANEL,
+    CONF_SPENDS_ENABLED,
+    CONF_SPENDS_HISTORY,
+    CONF_STATISTICS_IMPORT,
     CONF_TGE_ENABLED,
     CONF_THERMAL_LOSS_KW_K,
     CONF_USE_HA_LOCATION,
@@ -110,16 +168,24 @@ from .const import (
     DEFAULT_VAT_RATE,
     DEFAULT_WEATHER_MODEL,
     DEFAULT_WEATHER_REFRESH_H,
+    DHW_HP_MODES,
+    DHW_HP_VALVE,
     DOMAIN,
     FORECAST_MODEL_AUTO,
     FORECAST_MODELS,
+    HEATER_KIND_ELECTRIC,
+    HEATER_KINDS,
     MARKET_PROVIDER_ENTSOE,
     MARKET_PROVIDERS,
     NAME,
+    POWER_UNITS,
     WEATHER_MODELS,
 )
 from .mqtt.schemas import TOPICS, resolve_topic, topic_field, validate_topic
+from .optimization.dhw import parse_times
 from .settings import parse_profiles
+from .settings_ext import parse_steps
+from .tariff import DIST_NONE, DIST_TARIFFS, parse_hour_ranges
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,6 +229,9 @@ def schema_pstryk(v: Mapping[str, Any], include_key: bool) -> vol.Schema:
                 CONF_PRICE_INCLUDES_DISTRIBUTION, default=_d(v, CONF_PRICE_INCLUDES_DISTRIBUTION, False)
             ): bool,
             vol.Required(CONF_AUTO_CALIBRATE_TARIFF, default=_d(v, CONF_AUTO_CALIBRATE_TARIFF, False)): bool,
+            vol.Required(CONF_SPENDS_ENABLED, default=_d(v, CONF_SPENDS_ENABLED, True)): bool,
+            vol.Required(CONF_SPENDS_HISTORY, default=_d(v, CONF_SPENDS_HISTORY, True)): bool,
+            vol.Required(CONF_STATISTICS_IMPORT, default=_d(v, CONF_STATISTICS_IMPORT, False)): bool,
         }
     )
     return vol.Schema(fields)
@@ -252,13 +321,11 @@ def schema_buffer(v: Mapping[str, Any]) -> vol.Schema:
     fields: dict[Any, Any] = {
         vol.Required(CONF_BUFFER_ENABLED, default=_d(v, CONF_BUFFER_ENABLED, False)): bool,
     }
-    for key in (CONF_BUFFER_TEMP_ENTITY, CONF_OUTDOOR_TEMP_ENTITY):
-        if v.get(key):
-            fields[vol.Optional(key, default=v[key])] = temp_sel
-        else:
-            fields[vol.Optional(key)] = temp_sel
-    for key in (CONF_BUFFER_TEMP_TOPIC, CONF_BUFFER_TEMP_KEY, CONF_OUTDOOR_TEMP_TOPIC, CONF_OUTDOOR_TEMP_KEY):
+    for key in (CONF_BUFFER_TOP_ENTITY, CONF_BUFFER_BOTTOM_ENTITY, CONF_OUTDOOR_TEMP_ENTITY):
+        fields[vol.Optional(key, description={"suggested_value": v.get(key) or None})] = temp_sel
+    for key in BUFFER_TEXT_KEYS:
         fields[vol.Optional(key, description={"suggested_value": v.get(key) or ""})] = selector.TextSelector()
+    fields[vol.Required(CONF_HP_MAX_T, default=_d(v, CONF_HP_MAX_T, 55.0))] = _num(30, 80, 0.5, "°C")
     fields[vol.Required(CONF_INPUT_MAX_AGE_MIN, default=_d(v, CONF_INPUT_MAX_AGE_MIN, DEFAULT_INPUT_MAX_AGE_MIN))] = (
         _num(2, 720, 1, "min")
     )
@@ -308,6 +375,154 @@ def schema_buffer(v: Mapping[str, Any]) -> vol.Schema:
     return vol.Schema(fields)
 
 
+BUFFER_TEXT_KEYS = (
+    CONF_BUFFER_TOP_TOPIC,
+    CONF_BUFFER_TOP_KEY,
+    CONF_BUFFER_BOTTOM_TOPIC,
+    CONF_BUFFER_BOTTOM_KEY,
+    CONF_OUTDOOR_TEMP_TOPIC,
+    CONF_OUTDOOR_TEMP_KEY,
+)
+BUFFER_ENTITY_KEYS = (CONF_BUFFER_TOP_ENTITY, CONF_BUFFER_BOTTOM_ENTITY, CONF_OUTDOOR_TEMP_ENTITY)
+
+
+def _text(v: Mapping[str, Any], key: str) -> vol.Optional:
+    return vol.Optional(key, description={"suggested_value": v.get(key) or ""})
+
+
+def _temp_entity(v: Mapping[str, Any], key: str) -> vol.Optional:
+    return vol.Optional(key, description={"suggested_value": v.get(key) or None})
+
+
+TEMP_SEL = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="temperature"))
+
+
+def schema_heater(v: Mapping[str, Any], prefix: str) -> vol.Schema:
+    p = f"{prefix}_heater_"
+    return vol.Schema(
+        {
+            vol.Required(p + "enabled", default=_d(v, p + "enabled", False)): bool,
+            vol.Required(p + "kind", default=_d(v, p + "kind", HEATER_KIND_ELECTRIC)): _sel(
+                HEATER_KINDS, "heater_kind"
+            ),
+            vol.Required(p + "steps_kw", default=str(_d(v, p + "steps_kw", "3"))): str,
+            vol.Required(p + "efficiency", default=_d(v, p + "efficiency", 1.0)): _num(0.3, 1.2, "any"),
+            vol.Required(p + "fuel_price", default=_d(v, p + "fuel_price", 0.35)): _num(0, 5, "any", "PLN/kWh"),
+            _text(v, p + "max_temperature"): selector.TextSelector(),
+            _text(v, p + "command_topic"): selector.TextSelector(),
+            vol.Required(p + "command_format", default=_d(v, p + "command_format", COMMAND_BINARY)): _sel(
+                COMMAND_FORMATS, "command_format"
+            ),
+            _text(v, p + "state_topic"): selector.TextSelector(),
+            _text(v, p + "state_json_key"): selector.TextSelector(),
+        }
+    )
+
+
+DHW_TEXT_KEYS = (
+    CONF_DHW_TOP_TOPIC,
+    CONF_DHW_TOP_KEY,
+    CONF_DHW_BOTTOM_TOPIC,
+    CONF_DHW_BOTTOM_KEY,
+    CONF_DHW_VALVE_TOPIC,
+)
+
+
+def schema_dhw(v: Mapping[str, Any]) -> vol.Schema:
+    fields: dict[Any, Any] = {vol.Required(CONF_DHW_ENABLED, default=_d(v, CONF_DHW_ENABLED, False)): bool}
+    for key in (CONF_DHW_TOP_ENTITY, CONF_DHW_BOTTOM_ENTITY):
+        fields[_temp_entity(v, key)] = TEMP_SEL
+    for key in (CONF_DHW_TOP_TOPIC, CONF_DHW_TOP_KEY, CONF_DHW_BOTTOM_TOPIC, CONF_DHW_BOTTOM_KEY):
+        fields[_text(v, key)] = selector.TextSelector()
+    fields.update(
+        {
+            vol.Required(CONF_DHW_VOLUME_L, default=_d(v, CONF_DHW_VOLUME_L, 200)): _num(30, 2000, 10, "L"),
+            vol.Required(CONF_DHW_MIN_T, default=_d(v, CONF_DHW_MIN_T, 40.0)): _num(20, 70, 0.5, "°C"),
+            vol.Required(CONF_DHW_MAX_T, default=_d(v, CONF_DHW_MAX_T, 60.0)): _num(30, 85, 0.5, "°C"),
+            vol.Required(CONF_DHW_TARGET_T, default=_d(v, CONF_DHW_TARGET_T, 50.0)): _num(30, 80, 0.5, "°C"),
+            vol.Required(CONF_DHW_READY_TIMES, default=str(_d(v, CONF_DHW_READY_TIMES, "06:00,19:00"))): str,
+            vol.Required(CONF_DHW_READY_T, default=_d(v, CONF_DHW_READY_T, 45.0)): _num(30, 70, 0.5, "°C"),
+            vol.Required(CONF_DHW_LITERS_DAY, default=_d(v, CONF_DHW_LITERS_DAY, 150)): _num(0, 2000, 5, "L"),
+            vol.Required(CONF_DHW_LOSS_KW_K, default=_d(v, CONF_DHW_LOSS_KW_K, 0.002)): _num(0, 0.05, "any", "kW/K"),
+            vol.Required(CONF_DHW_HP_MODE, default=_d(v, CONF_DHW_HP_MODE, DHW_HP_VALVE)): _sel(
+                DHW_HP_MODES, "dhw_heat_pump_mode"
+            ),
+            vol.Required(CONF_DHW_PRIORITY, default=_d(v, CONF_DHW_PRIORITY, True)): bool,
+            _text(v, CONF_DHW_VALVE_TOPIC): selector.TextSelector(),
+            vol.Required(CONF_LEGIONELLA_ENABLED, default=_d(v, CONF_LEGIONELLA_ENABLED, False)): bool,
+            vol.Required(CONF_LEGIONELLA_T, default=_d(v, CONF_LEGIONELLA_T, 60.0)): _num(55, 80, 0.5, "°C"),
+            vol.Required(CONF_LEGIONELLA_DAYS, default=_d(v, CONF_LEGIONELLA_DAYS, 7)): _num(1, 30, 1, "d"),
+        }
+    )
+    return vol.Schema(fields)
+
+
+POWER_TEXT_KEYS = (CONF_HP_POWER_TOPIC, CONF_HP_POWER_KEY)
+
+
+def schema_power(v: Mapping[str, Any]) -> vol.Schema:
+    power_sel = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", device_class="power"))
+    return vol.Schema(
+        {
+            vol.Required(CONF_POWER_LIMIT_ENABLED, default=_d(v, CONF_POWER_LIMIT_ENABLED, False)): bool,
+            vol.Required(CONF_POWER_LIMIT_KW, default=_d(v, CONF_POWER_LIMIT_KW, 11.0)): _num(1, 100, 0.5, "kW"),
+            vol.Required(CONF_BASE_LOAD_KW, default=_d(v, CONF_BASE_LOAD_KW, 0.4)): _num(0, 20, 0.1, "kW"),
+            _temp_entity(v, CONF_HP_POWER_ENTITY): power_sel,
+            _text(v, CONF_HP_POWER_TOPIC): selector.TextSelector(),
+            _text(v, CONF_HP_POWER_KEY): selector.TextSelector(),
+            vol.Required(CONF_POWER_UNIT, default=_d(v, CONF_POWER_UNIT, "kW")): _sel(POWER_UNITS, "power_unit"),
+        }
+    )
+
+
+def schema_tariff(v: Mapping[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_DIST_TARIFF, default=_d(v, CONF_DIST_TARIFF, DIST_NONE)): _sel(
+                DIST_TARIFFS, "distribution_tariff"
+            ),
+            vol.Required(CONF_DIST_RATE_PEAK, default=_d(v, CONF_DIST_RATE_PEAK, 0.0)): _num(0, 3, "any", "PLN/kWh"),
+            vol.Required(CONF_DIST_RATE_OFFPEAK, default=_d(v, CONF_DIST_RATE_OFFPEAK, 0.0)): _num(
+                0, 3, "any", "PLN/kWh"
+            ),
+            vol.Required(CONF_DIST_RATE_PEAK2, default=_d(v, CONF_DIST_RATE_PEAK2, 0.0)): _num(0, 3, "any", "PLN/kWh"),
+            _text(v, CONF_DIST_OFFPEAK_HOURS): selector.TextSelector(),
+            _text(v, CONF_DIST_PEAK2_HOURS): selector.TextSelector(),
+            vol.Required(CONF_DIST_WEEKEND_OFFPEAK, default=_d(v, CONF_DIST_WEEKEND_OFFPEAK, False)): bool,
+            vol.Required(CONF_OPTIMIZE_ALL_IN, default=_d(v, CONF_OPTIMIZE_ALL_IN, False)): bool,
+        }
+    )
+
+
+def schema_pv(v: Mapping[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_PV_ENABLED, default=_d(v, CONF_PV_ENABLED, False)): bool,
+            vol.Required(CONF_PV_KWP, default=_d(v, CONF_PV_KWP, 5.0)): _num(0.1, 100, 0.1, "kWp"),
+            vol.Required(CONF_PV_PR, default=_d(v, CONF_PV_PR, 0.8)): _num(0.3, 1.0, 0.01),
+            vol.Required(CONF_BASE_LOAD_KW, default=_d(v, CONF_BASE_LOAD_KW, 0.4)): _num(0, 20, 0.1, "kW"),
+        }
+    )
+
+
+def schema_learning(v: Mapping[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(k, default=_d(v, k, False)): bool
+            for k in (CONF_LEARN_LOSSES, CONF_LEARN_DHW_PROFILE, CONF_LEARN_COP, CONF_LEARN_APPLY)
+        }
+    )
+
+
+def schema_notifications(v: Mapping[str, Any]) -> vol.Schema:
+    fields: dict[Any, Any] = {
+        vol.Required(k, default=_d(v, k, False)): bool
+        for k in (CONF_NOTIFY_TOMORROW, CONF_NOTIFY_NEGATIVE, CONF_NOTIFY_FALLBACK, CONF_NOTIFY_STALE, CONF_HEARTBEAT)
+    }
+    fields[_text(v, CONF_NOTIFY_SERVICE)] = selector.TextSelector()
+    return vol.Schema(fields)
+
+
 def schema_mqtt(v: Mapping[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
@@ -349,10 +564,40 @@ def validate_section(step: str, data: dict[str, Any]) -> dict[str, str]:
                 errors[CONF_DEVICE_PROFILES] = "invalid_input_topic"
     if step == "buffer" and float(data.get(CONF_BUFFER_MIN_T, 0)) >= float(data.get(CONF_BUFFER_MAX_T, 100)):
         errors[CONF_BUFFER_MAX_T] = "invalid_temperature_range"
-    if step == "buffer":
-        for key in (CONF_BUFFER_TEMP_TOPIC, CONF_OUTDOOR_TEMP_TOPIC):
-            if not _valid_input_topic(data.get(key)):
-                errors[key] = "invalid_input_topic"
+    topic_keys = {
+        "buffer": (CONF_BUFFER_TOP_TOPIC, CONF_BUFFER_BOTTOM_TOPIC, CONF_OUTDOOR_TEMP_TOPIC),
+        "dhw": (CONF_DHW_TOP_TOPIC, CONF_DHW_BOTTOM_TOPIC, CONF_DHW_VALVE_TOPIC),
+        "buffer_heater": ("buffer_heater_command_topic", "buffer_heater_state_topic"),
+        "dhw_heater": ("dhw_heater_command_topic", "dhw_heater_state_topic"),
+        "power": (CONF_HP_POWER_TOPIC,),
+    }
+    for key in topic_keys.get(step, ()):
+        if not _valid_input_topic(data.get(key)):
+            errors[key] = "invalid_input_topic"
+    if step in ("buffer_heater", "dhw_heater"):
+        prefix = step.replace("_heater", "")
+        if not parse_steps(data.get(f"{prefix}_heater_steps_kw")):
+            errors[f"{prefix}_heater_steps_kw"] = "invalid_steps"
+        max_t = str(data.get(f"{prefix}_heater_max_temperature") or "").strip()
+        if max_t:
+            try:
+                float(max_t.replace(",", "."))
+            except ValueError:
+                errors[f"{prefix}_heater_max_temperature"] = "invalid_number"
+    if step == "dhw":
+        if not parse_times(data.get(CONF_DHW_READY_TIMES)) and str(data.get(CONF_DHW_READY_TIMES) or "").strip():
+            errors[CONF_DHW_READY_TIMES] = "invalid_times"
+        if float(data.get(CONF_DHW_MIN_T, 0)) >= float(data.get(CONF_DHW_MAX_T, 100)):
+            errors[CONF_DHW_MAX_T] = "invalid_temperature_range"
+    if step == "tariff":
+        for key in (CONF_DIST_OFFPEAK_HOURS, CONF_DIST_PEAK2_HOURS):
+            text = str(data.get(key) or "").strip()
+            if text and not parse_hour_ranges(text):
+                errors[key] = "invalid_hours"
+    if step == "notifications":
+        service = str(data.get(CONF_NOTIFY_SERVICE) or "").strip()
+        if service and not service.startswith("notify."):
+            errors[CONF_NOTIFY_SERVICE] = "invalid_notify_service"
     if step == "mqtt":
         prefix = str(data.get(CONF_MQTT_PREFIX, "")).strip()
         if not prefix or "#" in prefix or "+" in prefix:
@@ -368,10 +613,23 @@ def validate_section(step: str, data: dict[str, Any]) -> dict[str, str]:
 
 def _normalise(step: str, data: dict[str, Any]) -> dict[str, Any]:
     out = dict(data)
+    text_keys = {
+        "buffer": BUFFER_TEXT_KEYS + BUFFER_ENTITY_KEYS,
+        "dhw": (*DHW_TEXT_KEYS, CONF_DHW_TOP_ENTITY, CONF_DHW_BOTTOM_ENTITY),
+        "buffer_heater": tuple(
+            f"buffer_heater_{f}" for f in ("max_temperature", "command_topic", "state_topic", "state_json_key")
+        ),
+        "dhw_heater": tuple(
+            f"dhw_heater_{f}" for f in ("max_temperature", "command_topic", "state_topic", "state_json_key")
+        ),
+        "power": (*POWER_TEXT_KEYS, CONF_HP_POWER_ENTITY),
+        "tariff": (CONF_DIST_OFFPEAK_HOURS, CONF_DIST_PEAK2_HOURS),
+        "notifications": (CONF_NOTIFY_SERVICE,),
+    }
+    # cleared optional text fields are omitted by the frontend -> store as "not set"
+    for key in text_keys.get(step, ()):
+        out[key] = str(out.get(key) or "").strip()
     if step == "buffer":
-        # cleared optional text fields are omitted by the frontend -> store as "not set"
-        for key in (CONF_BUFFER_TEMP_TOPIC, CONF_BUFFER_TEMP_KEY, CONF_OUTDOOR_TEMP_TOPIC, CONF_OUTDOOR_TEMP_KEY):
-            out[key] = str(out.get(key) or "").strip()
         out[CONF_INPUT_MAX_AGE_MIN] = int(out.get(CONF_INPUT_MAX_AGE_MIN, DEFAULT_INPUT_MAX_AGE_MIN))
     if CONF_MQTT_QOS in out:
         out[CONF_MQTT_QOS] = int(out[CONF_MQTT_QOS])
@@ -393,6 +651,26 @@ def _normalise(step: str, data: dict[str, Any]) -> dict[str, Any]:
 
 
 STEPS = ["location", "market", "weather", "forecast", "optimization", "buffer", "mqtt"]
+OPTION_MENU = [
+    "pstryk",
+    "tariff",
+    "location",
+    "market",
+    "weather",
+    "forecast",
+    "optimization",
+    "buffer",
+    "buffer_heater",
+    "dhw",
+    "dhw_heater",
+    "power",
+    "pv",
+    "learning",
+    "notifications",
+    "mqtt",
+    "mqtt_topics",
+    "panel",
+]
 
 
 def schema_topics(overrides: Mapping[str, str]) -> vol.Schema:
@@ -432,6 +710,7 @@ def schema_panel(v: Mapping[str, Any]) -> vol.Schema:
 
 class PstrykAIConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}
@@ -600,7 +879,7 @@ class PstrykAIOptionsFlow(OptionsFlow):
         return {**self.config_entry.data, **self.config_entry.options}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["pstryk", *STEPS, "mqtt_topics", "panel"])
+        return self.async_show_menu(step_id="init", menu_options=OPTION_MENU)
 
     async def _save(self, step: str, user_input: dict[str, Any] | None, schema: vol.Schema) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -666,3 +945,27 @@ class PstrykAIOptionsFlow(OptionsFlow):
 
     async def async_step_panel(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return await self._save("panel", user_input, schema_panel(self._values()))
+
+    async def async_step_tariff(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("tariff", user_input, schema_tariff(self._values()))
+
+    async def async_step_buffer_heater(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("buffer_heater", user_input, schema_heater(self._values(), "buffer"))
+
+    async def async_step_dhw(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("dhw", user_input, schema_dhw(self._values()))
+
+    async def async_step_dhw_heater(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("dhw_heater", user_input, schema_heater(self._values(), "dhw"))
+
+    async def async_step_power(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("power", user_input, schema_power(self._values()))
+
+    async def async_step_pv(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("pv", user_input, schema_pv(self._values()))
+
+    async def async_step_learning(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("learning", user_input, schema_learning(self._values()))
+
+    async def async_step_notifications(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("notifications", user_input, schema_notifications(self._values()))

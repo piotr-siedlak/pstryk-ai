@@ -194,6 +194,18 @@ class PstrykClient:
             }
         )
 
+    async def fetch_monthly(self, window_start: datetime, window_end: datetime) -> dict[str, Any]:
+        """Fetch monthly totals (Europe/Warsaw months) – one small request for up to 12+ months."""
+        return await self._get(
+            {
+                "metrics": "meter_values,cost",
+                "resolution": "month",
+                "for_tz": LOCAL_TZ,
+                "window_start": _z(window_start),
+                "window_end": _z(window_end),
+            }
+        )
+
     async def validate(self, now: datetime) -> dict[str, Any]:
         """Validate the key with a tiny pricing request (consumes one request)."""
         start = now.replace(minute=0, second=0, microsecond=0)

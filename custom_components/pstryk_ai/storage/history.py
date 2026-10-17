@@ -19,6 +19,7 @@ from ..api.weather import WeatherHour
 from ..const import DOMAIN
 from ..models.forecasts import ForecastRun
 from ..models.price_slot import MarketPoint, aggregate_hourly, floor_hour, iso, parse_iso
+from ..spends import PeriodTotals
 from .migrations import CURRENT_MAJOR, CURRENT_MINOR, VersionedStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +54,8 @@ class HistoryStore:
         self.state: dict[str, Any] = {}
         self.pstryk_buy: dict[datetime, float] = {}
         self.decisions: list[dict[str, Any]] = []
+        self.spend_days: dict[str, PeriodTotals] = {}
+        self.spend_months: dict[str, PeriodTotals] = {}
         self.loaded = False
 
     # --------------------------------------------------------------- load
@@ -81,6 +84,8 @@ class HistoryStore:
         self.state = state.get("state") or {}
         self.pstryk_buy = {parse_iso(k): float(v) for k, v in (state.get("pstryk_buy") or {}).items()}
         self.decisions = state.get("decisions") or []
+        self.spend_days = {d["period"]: PeriodTotals.from_dict(d) for d in state.get("spend_days") or []}
+        self.spend_months = {d["period"]: PeriodTotals.from_dict(d) for d in state.get("spend_months") or []}
         self.loaded = True
 
     # --------------------------------------------------------------- mutate
@@ -121,6 +126,17 @@ class HistoryStore:
 
     def add_pstryk_prices(self, prices: dict[datetime, float]) -> None:
         self.pstryk_buy.update(prices)
+
+    def add_spend_days(self, days: dict[str, PeriodTotals]) -> None:
+        """Own billing totals per local day (kept 400 days, local only)."""
+        self.spend_days.update(days)
+        for key in sorted(self.spend_days)[:-400]:
+            del self.spend_days[key]
+
+    def add_spend_months(self, months: dict[str, PeriodTotals]) -> None:
+        self.spend_months.update(months)
+        for key in sorted(self.spend_months)[:-36]:
+            del self.spend_months[key]
 
     def add_decision(self, decision: dict[str, Any]) -> None:
         self.decisions.append(decision)
@@ -186,6 +202,8 @@ class HistoryStore:
             "state": self.state,
             "pstryk_buy": {iso(h): v for h, v in sorted(self.pstryk_buy.items())},
             "decisions": self.decisions,
+            "spend_days": [d.to_dict() for _, d in sorted(self.spend_days.items())],
+            "spend_months": [d.to_dict() for _, d in sorted(self.spend_months.items())],
         }
 
     def schedule_save(self, *names: str) -> None:

@@ -12,7 +12,10 @@
           "excise_net": "Excise duty (net)",
           "var_distribution_net": "Variable distribution charge (net)",
           "pstryk_price_includes_distribution": "Pstryk price already includes distribution",
-          "auto_calibrate_tariff": "Auto-calibrate tariff locally (opt-in)"
+          "auto_calibrate_tariff": "Auto-calibrate tariff locally (opt-in)",
+          "pstryk_spends": "Pstryk spending (daily / monthly costs)",
+          "pstryk_monthly_history": "Monthly history – last 12 months (1 request per day)",
+          "pstryk_statistics_import": "Import daily totals into HA long-term statistics (Energy dashboard)"
         }
       },
       "location": {
@@ -69,12 +72,16 @@
         "description": "Advisory optimization of a heat-pump buffer. The buffer temperature is read from the exact MQTT topic (preferred, e.g. published by Loxone) or from a Home Assistant sensor. The payload can be a number (42.5) or JSON – then give the key, e.g. value or sensors.bufor. Hardware safety limits always remain local.",
         "data": {
           "buffer_enabled": "Enable buffer optimization",
-          "buffer_temperature_entity": "Buffer temperature sensor",
-          "buffer_temperature_topic": "Buffer temperature – MQTT topic (exact, e.g. loxone/bufor/temperatura)",
-          "buffer_temperature_json_key": "Buffer temperature – JSON key (only if the payload is JSON)",
+          "buffer_top_entity": "Buffer TOP temperature sensor (HA)",
+          "buffer_bottom_entity": "Buffer BOTTOM temperature sensor (HA, optional)",
           "outdoor_temperature_entity": "Outdoor temperature sensor (optional)",
+          "buffer_top_topic": "Buffer TOP temperature – exact MQTT topic",
+          "buffer_top_json_key": "Buffer TOP – JSON key (optional)",
+          "buffer_bottom_topic": "Buffer BOTTOM temperature – exact MQTT topic (optional)",
+          "buffer_bottom_json_key": "Buffer BOTTOM – JSON key (optional)",
           "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
           "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
+          "heat_pump_max_supply_temperature": "Heat pump maximum supply temperature",
           "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
           "buffer_capacity_liters": "Buffer volume",
           "buffer_min_temperature": "Minimum buffer temperature",
@@ -129,7 +136,12 @@
       "entsoe_token_required": "ENTSO-E token required for this source",
       "invalid_profiles": "Invalid device profiles JSON",
       "invalid_temperature_range": "Maximum must be above minimum",
-      "invalid_prefix": "Invalid MQTT topic prefix"
+      "invalid_prefix": "Invalid MQTT topic prefix",
+      "invalid_steps": "Enter power steps like 2,4,6",
+      "invalid_number": "Enter a number",
+      "invalid_times": "Enter times like 06:00,19:00",
+      "invalid_hours": "Enter hour ranges like 22-6,13-15",
+      "invalid_notify_service": "Use a notify service, e.g. notify.mobile_app_phone"
     },
     "abort": {
       "already_configured": "This Pstryk key is already configured",
@@ -148,7 +160,24 @@
           "excise_net": "Excise duty (net)",
           "var_distribution_net": "Variable distribution charge (net)",
           "pstryk_price_includes_distribution": "Pstryk price already includes distribution",
-          "auto_calibrate_tariff": "Auto-calibrate tariff locally (opt-in)"
+          "auto_calibrate_tariff": "Auto-calibrate tariff locally (opt-in)",
+          "pstryk_spends": "Pstryk spending (daily / monthly costs)",
+          "pstryk_monthly_history": "Monthly history – last 12 months (1 request per day)",
+          "pstryk_statistics_import": "Import daily totals into HA long-term statistics (Energy dashboard)"
+        }
+      },
+      "tariff": {
+        "title": "Distribution tariff",
+        "description": "Time-of-use variable distribution charge. Hours are local, ranges like 22-6,13-15 (end hour exclusive). With optimisation on the all-in price the cheapest hours include distribution.",
+        "data": {
+          "distribution_tariff": "Distribution tariff",
+          "distribution_rate_peak": "Variable distribution – day / peak (net)",
+          "distribution_rate_offpeak": "Variable distribution – night / off-peak (net)",
+          "distribution_rate_peak2": "Variable distribution – G13 afternoon peak (net)",
+          "distribution_offpeak_hours": "Off-peak hours, e.g. 22-6,13-15",
+          "distribution_peak2_hours": "G13 afternoon peak hours, e.g. 16-21",
+          "distribution_weekend_offpeak": "Weekends and holidays are off-peak",
+          "optimize_on_all_in_price": "Optimise on the price including distribution"
         }
       },
       "location": {
@@ -205,12 +234,16 @@
         "description": "Advisory optimization of a heat-pump buffer. The buffer temperature is read from the exact MQTT topic (preferred, e.g. published by Loxone) or from a Home Assistant sensor. The payload can be a number (42.5) or JSON – then give the key, e.g. value or sensors.bufor. Hardware safety limits always remain local.",
         "data": {
           "buffer_enabled": "Enable buffer optimization",
-          "buffer_temperature_entity": "Buffer temperature sensor",
-          "buffer_temperature_topic": "Buffer temperature – MQTT topic (exact, e.g. loxone/bufor/temperatura)",
-          "buffer_temperature_json_key": "Buffer temperature – JSON key (only if the payload is JSON)",
+          "buffer_top_entity": "Buffer TOP temperature sensor (HA)",
+          "buffer_bottom_entity": "Buffer BOTTOM temperature sensor (HA, optional)",
           "outdoor_temperature_entity": "Outdoor temperature sensor (optional)",
+          "buffer_top_topic": "Buffer TOP temperature – exact MQTT topic",
+          "buffer_top_json_key": "Buffer TOP – JSON key (optional)",
+          "buffer_bottom_topic": "Buffer BOTTOM temperature – exact MQTT topic (optional)",
+          "buffer_bottom_json_key": "Buffer BOTTOM – JSON key (optional)",
           "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
           "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
+          "heat_pump_max_supply_temperature": "Heat pump maximum supply temperature",
           "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
           "buffer_capacity_liters": "Buffer volume",
           "buffer_min_temperature": "Minimum buffer temperature",
@@ -227,6 +260,110 @@
           "minimum_offtime": "Minimum compressor off time",
           "maximum_start_count": "Maximum starts per day",
           "buffer_strategy": "Buffer strategy"
+        }
+      },
+      "buffer_heater": {
+        "title": "Buffer heater",
+        "description": "Electric element or gas boiler heating the buffer. Commands go to the command topic only when advisory mode is off.",
+        "data": {
+          "buffer_heater_enabled": "Use the heater",
+          "buffer_heater_kind": "Heater type",
+          "buffer_heater_steps_kw": "Power steps in kW (heat output), e.g. 2,4,6",
+          "buffer_heater_efficiency": "Efficiency (electric 1.0, gas ~0.92)",
+          "buffer_heater_fuel_price": "Gas price per kWh of fuel",
+          "buffer_heater_max_temperature": "Maximum temperature for the heater (optional)",
+          "buffer_heater_command_topic": "Command topic (exact, published only in control mode)",
+          "buffer_heater_command_format": "Command format",
+          "buffer_heater_state_topic": "State / power topic for metering (optional)",
+          "buffer_heater_state_json_key": "State – JSON key (optional)"
+        }
+      },
+      "dhw": {
+        "title": "Hot water (CWU)",
+        "description": "Second storage: drinkable hot-water tank with top/bottom sensors, ready times and an optional legionella cycle. With 'valve' the heat pump serves either the buffer or CWU in each hour.",
+        "data": {
+          "dhw_enabled": "Optimise the hot-water tank (CWU)",
+          "dhw_top_entity": "CWU TOP temperature sensor (HA)",
+          "dhw_top_topic": "CWU TOP temperature – exact MQTT topic",
+          "dhw_top_json_key": "CWU TOP – JSON key (optional)",
+          "dhw_bottom_entity": "CWU BOTTOM temperature sensor (HA, optional)",
+          "dhw_bottom_topic": "CWU BOTTOM temperature – exact MQTT topic (optional)",
+          "dhw_bottom_json_key": "CWU BOTTOM – JSON key (optional)",
+          "dhw_capacity_liters": "Tank volume",
+          "dhw_min_temperature": "Minimum temperature",
+          "dhw_max_temperature": "Maximum temperature",
+          "dhw_target_temperature": "Default target temperature",
+          "dhw_ready_times": "Hot water ready at (local times, e.g. 06:00,19:00)",
+          "dhw_ready_temperature": "Required temperature at ready times",
+          "dhw_liters_per_day": "Hot water use per day (litres at 45 °C)",
+          "dhw_losses": "Tank standby losses",
+          "dhw_heat_pump_mode": "Heat pump for CWU",
+          "dhw_priority": "CWU has priority over the buffer",
+          "dhw_valve_command_topic": "Switching-valve command topic (optional, control mode)",
+          "legionella_enabled": "Legionella protection cycle",
+          "legionella_temperature": "Legionella temperature",
+          "legionella_interval_days": "Legionella interval"
+        }
+      },
+      "dhw_heater": {
+        "title": "CWU heater",
+        "description": "Electric element or gas boiler heating the hot-water tank (also used for legionella above the heat pump limit).",
+        "data": {
+          "dhw_heater_enabled": "Use the heater",
+          "dhw_heater_kind": "Heater type",
+          "dhw_heater_steps_kw": "Power steps in kW (heat output), e.g. 2,4,6",
+          "dhw_heater_efficiency": "Efficiency (electric 1.0, gas ~0.92)",
+          "dhw_heater_fuel_price": "Gas price per kWh of fuel",
+          "dhw_heater_max_temperature": "Maximum temperature for the heater (optional)",
+          "dhw_heater_command_topic": "Command topic (exact, published only in control mode)",
+          "dhw_heater_command_format": "Command format",
+          "dhw_heater_state_topic": "State / power topic for metering (optional)",
+          "dhw_heater_state_json_key": "State – JSON key (optional)"
+        }
+      },
+      "power": {
+        "title": "Power limit and metering",
+        "description": "Connection limit for heat pump + heaters + devices, and the optional heat-pump power reading used for real consumption and learning.",
+        "data": {
+          "power_limit_enabled": "Respect the connection power limit",
+          "power_limit_kw": "Connection power limit",
+          "base_load_kw": "Typical household base load",
+          "heat_pump_power_entity": "Heat pump power sensor (HA, optional)",
+          "heat_pump_power_topic": "Heat pump power – exact MQTT topic (optional)",
+          "heat_pump_power_json_key": "Heat pump power – JSON key (optional)",
+          "power_unit": "Unit of power readings"
+        }
+      },
+      "pv": {
+        "title": "PV self-consumption",
+        "description": "PV production is estimated from the solar radiation forecast. Energy above the base load is valued at the Pstryk sell price for flexible loads.",
+        "data": {
+          "pv_enabled": "Use PV surplus (self-consumption)",
+          "pv_kwp": "PV installation size",
+          "pv_performance_ratio": "Performance ratio",
+          "base_load_kw": "Typical household base load"
+        }
+      },
+      "learning": {
+        "title": "Learning",
+        "description": "Learn parameters from measured temperatures (and power, if available). Learned values are used only when enabled below and after enough data.",
+        "data": {
+          "learn_losses": "Learn building heat demand and storage losses",
+          "learn_dhw_profile": "Learn hot-water usage profile",
+          "learn_cop": "Learn heat pump efficiency (needs power metering)",
+          "apply_learned_values": "Use learned values in planning"
+        }
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "Choose which notifications to send.",
+        "data": {
+          "notify_tomorrow_prices": "Tomorrow's prices summary",
+          "notify_negative_prices": "Negative prices tomorrow",
+          "notify_local_control": "Fallback to local control",
+          "notify_stale_data": "Stale Pstryk data",
+          "mqtt_heartbeat": "MQTT heartbeat every 60 s (for Loxone watchdog)",
+          "notify_service": "Notify service (e.g. notify.mobile_app_phone; empty = HA notification)"
         }
       },
       "mqtt": {
@@ -290,7 +427,23 @@
           "topic_api_entsoe_status": "api/entsoe/status",
           "topic_api_pse_status": "api/pse/status",
           "topic_api_weather_status": "api/weather/status",
-          "topic_evcc_prices": "evcc/prices"
+          "topic_evcc_prices": "evcc/prices",
+          "topic_optimizer_buffer_heater_should_run": "optimizer/buffer/heater/should_run",
+          "topic_optimizer_buffer_heater_power": "optimizer/buffer/heater/power",
+          "topic_optimizer_buffer_soc": "optimizer/buffer/soc",
+          "topic_optimizer_dhw_should_heat": "optimizer/dhw/should_heat",
+          "topic_optimizer_dhw_mode": "optimizer/dhw/mode",
+          "topic_optimizer_dhw_target_temperature": "optimizer/dhw/target_temperature",
+          "topic_optimizer_dhw_next_start": "optimizer/dhw/next_start",
+          "topic_optimizer_dhw_schedule": "optimizer/dhw/schedule",
+          "topic_optimizer_dhw_heater_should_run": "optimizer/dhw/heater/should_run",
+          "topic_optimizer_dhw_heater_power": "optimizer/dhw/heater/power",
+          "topic_optimizer_dhw_soc": "optimizer/dhw/soc",
+          "topic_optimizer_valve": "optimizer/valve",
+          "topic_spends_summary": "spends/summary",
+          "topic_spends_daily": "spends/daily",
+          "topic_spends_monthly": "spends/monthly",
+          "topic_heartbeat": "heartbeat"
         }
       },
       "panel": {
@@ -312,7 +465,15 @@
           "forecast": "Forecasting",
           "optimization": "Optimization",
           "buffer": "Thermal buffer",
-          "mqtt": "MQTT"
+          "mqtt": "MQTT",
+          "tariff": "Distribution tariff",
+          "buffer_heater": "Buffer heater",
+          "dhw": "Hot water (CWU)",
+          "dhw_heater": "CWU heater",
+          "power": "Power limit and metering",
+          "pv": "PV self-consumption",
+          "learning": "Learning",
+          "notifications": "Notifications"
         }
       }
     },
@@ -328,7 +489,12 @@
       "entsoe_token_required": "ENTSO-E token required for this source",
       "invalid_profiles": "Invalid device profiles JSON",
       "invalid_temperature_range": "Maximum must be above minimum",
-      "invalid_prefix": "Invalid MQTT topic prefix"
+      "invalid_prefix": "Invalid MQTT topic prefix",
+      "invalid_steps": "Enter power steps like 2,4,6",
+      "invalid_number": "Enter a number",
+      "invalid_times": "Enter times like 06:00,19:00",
+      "invalid_hours": "Enter hour ranges like 22-6,13-15",
+      "invalid_notify_service": "Use a notify service, e.g. notify.mobile_app_phone"
     }
   },
   "selector": {
@@ -365,6 +531,39 @@
         "0": "0",
         "1": "1",
         "2": "2"
+      }
+    },
+    "heater_kind": {
+      "options": {
+        "electric": "Electric",
+        "gas": "Gas boiler"
+      }
+    },
+    "command_format": {
+      "options": {
+        "binary": "On/off (1/0)",
+        "power_kw": "Power in kW"
+      }
+    },
+    "dhw_heat_pump_mode": {
+      "options": {
+        "valve": "Shared heat pump with switching valve",
+        "none": "Heat pump does not heat CWU (heater only)"
+      }
+    },
+    "power_unit": {
+      "options": {
+        "kW": "kW",
+        "W": "W"
+      }
+    },
+    "distribution_tariff": {
+      "options": {
+        "none": "Flat rate (from the Pstryk step)",
+        "G11": "G11",
+        "G12": "G12",
+        "G12w": "G12w",
+        "G13": "G13"
       }
     }
   },
@@ -479,7 +678,93 @@
         "name": "Następne okno grzania"
       },
       "buffer_temperature": {
-        "name": "Temperatura bufora (odczyt)"
+        "name": "Temperatura bufora – góra"
+      },
+      "buffer_bottom_temperature": {
+        "name": "Temperatura bufora – dół"
+      },
+      "buffer_soc": {
+        "name": "Naładowanie bufora"
+      },
+      "buffer_heater_power": {
+        "name": "Grzałka bufora – zalecana moc"
+      },
+      "dhw_top_temperature": {
+        "name": "Temperatura CWU – góra"
+      },
+      "dhw_bottom_temperature": {
+        "name": "Temperatura CWU – dół"
+      },
+      "dhw_soc": {
+        "name": "Naładowanie CWU"
+      },
+      "dhw_target_temperature": {
+        "name": "Zalecana temperatura CWU"
+      },
+      "dhw_next_window": {
+        "name": "Następne grzanie CWU"
+      },
+      "dhw_expected_cost": {
+        "name": "Prognozowany koszt CWU"
+      },
+      "dhw_plan_reason": {
+        "name": "Uzasadnienie planu CWU"
+      },
+      "dhw_heater_power": {
+        "name": "Grzałka CWU – zalecana moc"
+      },
+      "legionella": {
+        "name": "Antylegionella – ostatni cykl"
+      },
+      "valve_position": {
+        "name": "Zawór pompy ciepła",
+        "state": {
+          "buffer": "Bufor",
+          "dhw": "CWU",
+          "idle": "Postój"
+        }
+      },
+      "distribution_zone": {
+        "name": "Strefa taryfy dystrybucyjnej",
+        "state": {
+          "flat": "Stała",
+          "peak": "Szczyt / dzienna",
+          "offpeak": "Pozaszczyt / nocna",
+          "peak2": "Szczyt popołudniowy"
+        }
+      },
+      "pv_production_today": {
+        "name": "Produkcja PV dziś (prognoza)"
+      },
+      "pv_surplus_now": {
+        "name": "Nadwyżka PV teraz"
+      },
+      "hp_energy_today": {
+        "name": "Zużycie pompy ciepła dziś"
+      },
+      "hp_cost_today": {
+        "name": "Koszt pompy ciepła dziś"
+      },
+      "heaters_energy_today": {
+        "name": "Zużycie grzałek dziś"
+      },
+      "cost_yesterday": {
+        "name": "Koszt energii wczoraj"
+      },
+      "cost_previous_month": {
+        "name": "Koszt energii w poprzednim miesiącu"
+      },
+      "cost_12_months": {
+        "name": "Koszt energii – ostatnie 12 miesięcy"
+      },
+      "avg_daily_cost": {
+        "name": "Średni dzienny koszt energii"
+      },
+      "projected_month_cost": {
+        "name": "Prognozowany koszt miesiąca"
+      },
+      "learning_status": {
+        "name": "Uczenie parametrów"
       },
       "outdoor_temperature": {
         "name": "Temperatura zewnętrzna (odczyt)"
@@ -545,6 +830,15 @@
       },
       "buffer_should_heat": {
         "name": "Zalecane grzanie bufora"
+      },
+      "dhw_should_heat": {
+        "name": "Zalecane grzanie CWU"
+      },
+      "buffer_heater_should_run": {
+        "name": "Zalecana praca grzałki bufora"
+      },
+      "dhw_heater_should_run": {
+        "name": "Zalecana praca grzałki CWU"
       }
     },
     "switch": {
@@ -559,6 +853,24 @@
       },
       "advisory_mode": {
         "name": "Tryb doradczy"
+      },
+      "dhw_enabled": {
+        "name": "Optymalizacja CWU"
+      },
+      "buffer_heater_enabled": {
+        "name": "Grzałka bufora"
+      },
+      "dhw_heater_enabled": {
+        "name": "Grzałka CWU"
+      },
+      "pv_enabled": {
+        "name": "Autokonsumpcja PV"
+      },
+      "power_limit_enabled": {
+        "name": "Limit mocy przyłącza"
+      },
+      "optimize_all_in": {
+        "name": "Optymalizacja wg ceny z dystrybucją"
       }
     },
     "button": {

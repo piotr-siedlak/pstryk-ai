@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "pstryk_ai"
 NAME: Final = "Pstryk AI"
 MANUFACTURER: Final = "Pstryk AI (community)"
-VERSION: Final = "0.3.0"
+VERSION: Final = "0.4.0"
 
 LOCAL_TZ: Final = "Europe/Warsaw"
 
@@ -163,3 +163,105 @@ SERVICE_IMPORT_HISTORY: Final = "import_history"
 SERVICE_RUN_BACKTEST: Final = "run_backtest"
 
 STORAGE_VERSION: Final = 1
+
+# ---------------------------------------------------------------------------
+# v0.4 – heat storages, heaters, CWU, tariff zones, PV, learning, notifications
+# ---------------------------------------------------------------------------
+# Storage sensors (buffer_*/dhw_*): top required, bottom optional
+CONF_BUFFER_TOP_TOPIC: Final = "buffer_top_topic"
+CONF_BUFFER_TOP_KEY: Final = "buffer_top_json_key"
+CONF_BUFFER_TOP_ENTITY: Final = "buffer_top_entity"
+CONF_BUFFER_BOTTOM_TOPIC: Final = "buffer_bottom_topic"
+CONF_BUFFER_BOTTOM_KEY: Final = "buffer_bottom_json_key"
+CONF_BUFFER_BOTTOM_ENTITY: Final = "buffer_bottom_entity"
+CONF_HP_MAX_T: Final = "heat_pump_max_supply_temperature"
+
+# Heaters: f"{prefix}_heater_<field>" with prefix "buffer" or "dhw"
+HEATER_FIELDS: Final = (
+    "enabled",
+    "kind",
+    "steps_kw",
+    "efficiency",
+    "fuel_price",
+    "max_temperature",
+    "command_topic",
+    "command_format",
+    "state_topic",
+    "state_json_key",
+)
+HEATER_KIND_ELECTRIC: Final = "electric"
+HEATER_KIND_GAS: Final = "gas"
+HEATER_KINDS: Final = [HEATER_KIND_ELECTRIC, HEATER_KIND_GAS]
+COMMAND_BINARY: Final = "binary"
+COMMAND_POWER: Final = "power_kw"
+COMMAND_FORMATS: Final = [COMMAND_BINARY, COMMAND_POWER]
+
+# Hot water (CWU)
+CONF_DHW_ENABLED: Final = "dhw_enabled"
+CONF_DHW_TOP_TOPIC: Final = "dhw_top_topic"
+CONF_DHW_TOP_KEY: Final = "dhw_top_json_key"
+CONF_DHW_TOP_ENTITY: Final = "dhw_top_entity"
+CONF_DHW_BOTTOM_TOPIC: Final = "dhw_bottom_topic"
+CONF_DHW_BOTTOM_KEY: Final = "dhw_bottom_json_key"
+CONF_DHW_BOTTOM_ENTITY: Final = "dhw_bottom_entity"
+CONF_DHW_VOLUME_L: Final = "dhw_capacity_liters"
+CONF_DHW_MIN_T: Final = "dhw_min_temperature"
+CONF_DHW_MAX_T: Final = "dhw_max_temperature"
+CONF_DHW_TARGET_T: Final = "dhw_target_temperature"
+CONF_DHW_READY_TIMES: Final = "dhw_ready_times"
+CONF_DHW_READY_T: Final = "dhw_ready_temperature"
+CONF_DHW_LITERS_DAY: Final = "dhw_liters_per_day"
+CONF_DHW_LOSS_KW_K: Final = "dhw_losses"
+CONF_DHW_HP_MODE: Final = "dhw_heat_pump_mode"
+CONF_DHW_PRIORITY: Final = "dhw_priority"
+CONF_DHW_VALVE_TOPIC: Final = "dhw_valve_command_topic"
+CONF_LEGIONELLA_ENABLED: Final = "legionella_enabled"
+CONF_LEGIONELLA_T: Final = "legionella_temperature"
+CONF_LEGIONELLA_DAYS: Final = "legionella_interval_days"
+DHW_HP_VALVE: Final = "valve"
+DHW_HP_NONE: Final = "none"
+DHW_HP_MODES: Final = [DHW_HP_VALVE, DHW_HP_NONE]
+
+# Power limit and measurements
+CONF_POWER_LIMIT_ENABLED: Final = "power_limit_enabled"
+CONF_POWER_LIMIT_KW: Final = "power_limit_kw"
+CONF_BASE_LOAD_KW: Final = "base_load_kw"
+CONF_HP_POWER_TOPIC: Final = "heat_pump_power_topic"
+CONF_HP_POWER_KEY: Final = "heat_pump_power_json_key"
+CONF_HP_POWER_ENTITY: Final = "heat_pump_power_entity"
+CONF_POWER_UNIT: Final = "power_unit"
+POWER_UNITS: Final = ["kW", "W"]
+
+# Distribution tariff zones
+CONF_DIST_TARIFF: Final = "distribution_tariff"
+CONF_DIST_RATE_PEAK: Final = "distribution_rate_peak"
+CONF_DIST_RATE_OFFPEAK: Final = "distribution_rate_offpeak"
+CONF_DIST_RATE_PEAK2: Final = "distribution_rate_peak2"
+CONF_DIST_OFFPEAK_HOURS: Final = "distribution_offpeak_hours"
+CONF_DIST_PEAK2_HOURS: Final = "distribution_peak2_hours"
+CONF_DIST_WEEKEND_OFFPEAK: Final = "distribution_weekend_offpeak"
+CONF_OPTIMIZE_ALL_IN: Final = "optimize_on_all_in_price"
+
+# PV self-consumption
+CONF_PV_ENABLED: Final = "pv_enabled"
+CONF_PV_KWP: Final = "pv_kwp"
+CONF_PV_PR: Final = "pv_performance_ratio"
+
+# Learning
+CONF_LEARN_LOSSES: Final = "learn_losses"
+CONF_LEARN_DHW_PROFILE: Final = "learn_dhw_profile"
+CONF_LEARN_COP: Final = "learn_cop"
+CONF_LEARN_APPLY: Final = "apply_learned_values"
+
+# Notifications / heartbeat
+CONF_NOTIFY_TOMORROW: Final = "notify_tomorrow_prices"
+CONF_NOTIFY_NEGATIVE: Final = "notify_negative_prices"
+CONF_NOTIFY_FALLBACK: Final = "notify_local_control"
+CONF_NOTIFY_STALE: Final = "notify_stale_data"
+CONF_NOTIFY_SERVICE: Final = "notify_service"
+CONF_HEARTBEAT: Final = "mqtt_heartbeat"
+
+# Pstryk spending
+CONF_SPENDS_ENABLED: Final = "pstryk_spends"
+CONF_SPENDS_HISTORY: Final = "pstryk_monthly_history"
+CONF_STATISTICS_IMPORT: Final = "pstryk_statistics_import"

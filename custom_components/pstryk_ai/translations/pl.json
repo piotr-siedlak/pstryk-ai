@@ -12,7 +12,10 @@
           "excise_net": "Akcyza (netto)",
           "var_distribution_net": "Zmienna opłata dystrybucyjna (netto)",
           "pstryk_price_includes_distribution": "Cena Pstryk zawiera dystrybucję",
-          "auto_calibrate_tariff": "Lokalna autokalibracja taryfy (opcjonalnie)"
+          "auto_calibrate_tariff": "Lokalna autokalibracja taryfy (opcjonalnie)",
+          "pstryk_spends": "Wydatki Pstryk (koszty dzienne i miesięczne)",
+          "pstryk_monthly_history": "Historia miesięczna – ostatnie 12 miesięcy (1 zapytanie dziennie)",
+          "pstryk_statistics_import": "Import dziennych sum do statystyk HA (panel Energia)"
         }
       },
       "location": {
@@ -69,12 +72,16 @@
         "description": "Doradcza optymalizacja bufora pompy ciepła. Temperatura bufora jest odczytywana z dokładnego tematu MQTT (zalecane, np. publikowanego przez Loxone) albo z czujnika Home Assistant. Wiadomość może być liczbą (42.5) lub JSON – wtedy podaj klucz, np. value albo sensors.bufor. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
         "data": {
           "buffer_enabled": "Włącz optymalizację bufora",
-          "buffer_temperature_entity": "Czujnik temperatury bufora",
-          "buffer_temperature_topic": "Temperatura bufora – temat MQTT (dokładny, np. loxone/bufor/temperatura)",
-          "buffer_temperature_json_key": "Temperatura bufora – klucz JSON (tylko gdy wiadomość jest w JSON)",
+          "buffer_top_entity": "Czujnik temperatury bufora – GÓRA (HA)",
+          "buffer_bottom_entity": "Czujnik temperatury bufora – DÓŁ (HA, opcjonalnie)",
           "outdoor_temperature_entity": "Czujnik temperatury zewnętrznej (opcjonalnie)",
+          "buffer_top_topic": "Temperatura bufora – GÓRA – dokładny temat MQTT",
+          "buffer_top_json_key": "Bufor GÓRA – klucz JSON (opcjonalnie)",
+          "buffer_bottom_topic": "Temperatura bufora – DÓŁ – dokładny temat MQTT (opcjonalnie)",
+          "buffer_bottom_json_key": "Bufor DÓŁ – klucz JSON (opcjonalnie)",
           "outdoor_temperature_topic": "Temperatura zewnętrzna – temat MQTT (opcjonalnie)",
           "outdoor_temperature_json_key": "Temperatura zewnętrzna – klucz JSON (opcjonalnie)",
+          "heat_pump_max_supply_temperature": "Maksymalna temperatura zasilania pompy ciepła",
           "mqtt_input_max_age_minutes": "Odczyty MQTT starsze niż ta wartość traktuj jako brak danych",
           "buffer_capacity_liters": "Pojemność bufora",
           "buffer_min_temperature": "Minimalna temperatura bufora",
@@ -129,7 +136,12 @@
       "entsoe_token_required": "To źródło wymaga tokenu ENTSO-E",
       "invalid_profiles": "Nieprawidłowy JSON profili urządzeń",
       "invalid_temperature_range": "Maksimum musi być wyższe od minimum",
-      "invalid_prefix": "Nieprawidłowy prefiks tematu MQTT"
+      "invalid_prefix": "Nieprawidłowy prefiks tematu MQTT",
+      "invalid_steps": "Podaj stopnie mocy jak 2,4,6",
+      "invalid_number": "Podaj liczbę",
+      "invalid_times": "Podaj godziny jak 06:00,19:00",
+      "invalid_hours": "Podaj zakresy godzin jak 22-6,13-15",
+      "invalid_notify_service": "Podaj usługę notify, np. notify.mobile_app_telefon"
     },
     "abort": {
       "already_configured": "Ten klucz Pstryk jest już skonfigurowany",
@@ -148,7 +160,24 @@
           "excise_net": "Akcyza (netto)",
           "var_distribution_net": "Zmienna opłata dystrybucyjna (netto)",
           "pstryk_price_includes_distribution": "Cena Pstryk zawiera dystrybucję",
-          "auto_calibrate_tariff": "Lokalna autokalibracja taryfy (opcjonalnie)"
+          "auto_calibrate_tariff": "Lokalna autokalibracja taryfy (opcjonalnie)",
+          "pstryk_spends": "Wydatki Pstryk (koszty dzienne i miesięczne)",
+          "pstryk_monthly_history": "Historia miesięczna – ostatnie 12 miesięcy (1 zapytanie dziennie)",
+          "pstryk_statistics_import": "Import dziennych sum do statystyk HA (panel Energia)"
+        }
+      },
+      "tariff": {
+        "title": "Taryfa dystrybucyjna",
+        "description": "Zmienna opłata dystrybucyjna zależna od strefy. Godziny lokalne, zakresy jak 22-6,13-15 (godzina końcowa wyłączna). Przy optymalizacji wg ceny z dystrybucją najtańsze godziny uwzględniają dystrybucję.",
+        "data": {
+          "distribution_tariff": "Taryfa dystrybucyjna",
+          "distribution_rate_peak": "Zmienna opłata dystrybucyjna – dzienna / szczyt (netto)",
+          "distribution_rate_offpeak": "Zmienna opłata dystrybucyjna – nocna / pozaszczyt (netto)",
+          "distribution_rate_peak2": "Zmienna opłata dystrybucyjna – G13 szczyt popołudniowy (netto)",
+          "distribution_offpeak_hours": "Godziny strefy tańszej, np. 22-6,13-15",
+          "distribution_peak2_hours": "Godziny szczytu popołudniowego G13, np. 16-21",
+          "distribution_weekend_offpeak": "Weekendy i święta w strefie tańszej",
+          "optimize_on_all_in_price": "Optymalizuj według ceny z dystrybucją"
         }
       },
       "location": {
@@ -205,12 +234,16 @@
         "description": "Doradcza optymalizacja bufora pompy ciepła. Temperatura bufora jest odczytywana z dokładnego tematu MQTT (zalecane, np. publikowanego przez Loxone) albo z czujnika Home Assistant. Wiadomość może być liczbą (42.5) lub JSON – wtedy podaj klucz, np. value albo sensors.bufor. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
         "data": {
           "buffer_enabled": "Włącz optymalizację bufora",
-          "buffer_temperature_entity": "Czujnik temperatury bufora",
-          "buffer_temperature_topic": "Temperatura bufora – temat MQTT (dokładny, np. loxone/bufor/temperatura)",
-          "buffer_temperature_json_key": "Temperatura bufora – klucz JSON (tylko gdy wiadomość jest w JSON)",
+          "buffer_top_entity": "Czujnik temperatury bufora – GÓRA (HA)",
+          "buffer_bottom_entity": "Czujnik temperatury bufora – DÓŁ (HA, opcjonalnie)",
           "outdoor_temperature_entity": "Czujnik temperatury zewnętrznej (opcjonalnie)",
+          "buffer_top_topic": "Temperatura bufora – GÓRA – dokładny temat MQTT",
+          "buffer_top_json_key": "Bufor GÓRA – klucz JSON (opcjonalnie)",
+          "buffer_bottom_topic": "Temperatura bufora – DÓŁ – dokładny temat MQTT (opcjonalnie)",
+          "buffer_bottom_json_key": "Bufor DÓŁ – klucz JSON (opcjonalnie)",
           "outdoor_temperature_topic": "Temperatura zewnętrzna – temat MQTT (opcjonalnie)",
           "outdoor_temperature_json_key": "Temperatura zewnętrzna – klucz JSON (opcjonalnie)",
+          "heat_pump_max_supply_temperature": "Maksymalna temperatura zasilania pompy ciepła",
           "mqtt_input_max_age_minutes": "Odczyty MQTT starsze niż ta wartość traktuj jako brak danych",
           "buffer_capacity_liters": "Pojemność bufora",
           "buffer_min_temperature": "Minimalna temperatura bufora",
@@ -227,6 +260,110 @@
           "minimum_offtime": "Minimalny czas postoju sprężarki",
           "maximum_start_count": "Maksymalna liczba startów na dobę",
           "buffer_strategy": "Strategia bufora"
+        }
+      },
+      "buffer_heater": {
+        "title": "Grzałka bufora",
+        "description": "Grzałka elektryczna lub kocioł gazowy grzejący bufor. Polecenia trafiają na temat sterowania tylko przy wyłączonym trybie doradczym.",
+        "data": {
+          "buffer_heater_enabled": "Używaj grzałki",
+          "buffer_heater_kind": "Rodzaj grzałki",
+          "buffer_heater_steps_kw": "Stopnie mocy w kW (moc grzewcza), np. 2,4,6",
+          "buffer_heater_efficiency": "Sprawność (elektryczna 1,0, gaz ~0,92)",
+          "buffer_heater_fuel_price": "Cena gazu za kWh paliwa",
+          "buffer_heater_max_temperature": "Maksymalna temperatura dla grzałki (opcjonalnie)",
+          "buffer_heater_command_topic": "Temat sterowania (dokładny, publikowany tylko w trybie sterowania)",
+          "buffer_heater_command_format": "Format polecenia",
+          "buffer_heater_state_topic": "Temat stanu / mocy do pomiaru zużycia (opcjonalnie)",
+          "buffer_heater_state_json_key": "Stan – klucz JSON (opcjonalnie)"
+        }
+      },
+      "dhw": {
+        "title": "Ciepła woda (CWU)",
+        "description": "Drugi zasobnik: ciepła woda użytkowa z czujnikami góra/dół, godzinami gotowości i opcjonalnym cyklem antylegionella. Przy trybie 'zawór' pompa ciepła w danej godzinie grzeje bufor albo CWU.",
+        "data": {
+          "dhw_enabled": "Optymalizuj zasobnik CWU",
+          "dhw_top_entity": "Czujnik temperatury CWU – GÓRA (HA)",
+          "dhw_top_topic": "Temperatura CWU – GÓRA – dokładny temat MQTT",
+          "dhw_top_json_key": "CWU GÓRA – klucz JSON (opcjonalnie)",
+          "dhw_bottom_entity": "Czujnik temperatury CWU – DÓŁ (HA, opcjonalnie)",
+          "dhw_bottom_topic": "Temperatura CWU – DÓŁ – dokładny temat MQTT (opcjonalnie)",
+          "dhw_bottom_json_key": "CWU DÓŁ – klucz JSON (opcjonalnie)",
+          "dhw_capacity_liters": "Pojemność zasobnika",
+          "dhw_min_temperature": "Minimalna temperatura",
+          "dhw_max_temperature": "Maksymalna temperatura",
+          "dhw_target_temperature": "Domyślna temperatura docelowa",
+          "dhw_ready_times": "Gotowość ciepłej wody o (np. 06:00,19:00)",
+          "dhw_ready_temperature": "Wymagana temperatura w godzinach gotowości",
+          "dhw_liters_per_day": "Zużycie ciepłej wody na dobę (litry 45 °C)",
+          "dhw_losses": "Straty postojowe zasobnika",
+          "dhw_heat_pump_mode": "Pompa ciepła dla CWU",
+          "dhw_priority": "CWU ma priorytet nad buforem",
+          "dhw_valve_command_topic": "Temat sterowania zaworem przełączającym (opcjonalnie, tryb sterowania)",
+          "legionella_enabled": "Cykl antylegionella",
+          "legionella_temperature": "Temperatura antylegionella",
+          "legionella_interval_days": "Odstęp cyklu antylegionella"
+        }
+      },
+      "dhw_heater": {
+        "title": "Grzałka CWU",
+        "description": "Grzałka elektryczna lub kocioł gazowy grzejący zasobnik CWU (używana też do antylegionelli powyżej limitu pompy).",
+        "data": {
+          "dhw_heater_enabled": "Używaj grzałki",
+          "dhw_heater_kind": "Rodzaj grzałki",
+          "dhw_heater_steps_kw": "Stopnie mocy w kW (moc grzewcza), np. 2,4,6",
+          "dhw_heater_efficiency": "Sprawność (elektryczna 1,0, gaz ~0,92)",
+          "dhw_heater_fuel_price": "Cena gazu za kWh paliwa",
+          "dhw_heater_max_temperature": "Maksymalna temperatura dla grzałki (opcjonalnie)",
+          "dhw_heater_command_topic": "Temat sterowania (dokładny, publikowany tylko w trybie sterowania)",
+          "dhw_heater_command_format": "Format polecenia",
+          "dhw_heater_state_topic": "Temat stanu / mocy do pomiaru zużycia (opcjonalnie)",
+          "dhw_heater_state_json_key": "Stan – klucz JSON (opcjonalnie)"
+        }
+      },
+      "power": {
+        "title": "Limit mocy i pomiary",
+        "description": "Limit przyłącza dla pompy, grzałek i urządzeń oraz opcjonalny odczyt mocy pompy ciepła do rzeczywistego zużycia i uczenia.",
+        "data": {
+          "power_limit_enabled": "Uwzględniaj limit mocy przyłącza",
+          "power_limit_kw": "Limit mocy przyłącza",
+          "base_load_kw": "Typowe obciążenie podstawowe domu",
+          "heat_pump_power_entity": "Czujnik mocy pompy ciepła (HA, opcjonalnie)",
+          "heat_pump_power_topic": "Moc pompy ciepła – dokładny temat MQTT (opcjonalnie)",
+          "heat_pump_power_json_key": "Moc pompy ciepła – klucz JSON (opcjonalnie)",
+          "power_unit": "Jednostka odczytów mocy"
+        }
+      },
+      "pv": {
+        "title": "Autokonsumpcja PV",
+        "description": "Produkcja PV jest szacowana z prognozy promieniowania. Energia ponad obciążenie podstawowe jest wyceniana dla odbiorników elastycznych po cenie sprzedaży Pstryk.",
+        "data": {
+          "pv_enabled": "Wykorzystuj nadwyżkę PV (autokonsumpcja)",
+          "pv_kwp": "Moc instalacji PV",
+          "pv_performance_ratio": "Współczynnik sprawności instalacji",
+          "base_load_kw": "Typowe obciążenie podstawowe domu"
+        }
+      },
+      "learning": {
+        "title": "Uczenie",
+        "description": "Uczenie parametrów z mierzonych temperatur (i mocy, jeśli dostępna). Wyuczone wartości są używane tylko po włączeniu poniżej i po zebraniu wystarczającej ilości danych.",
+        "data": {
+          "learn_losses": "Ucz zapotrzebowania budynku i strat zasobnika",
+          "learn_dhw_profile": "Ucz profilu zużycia ciepłej wody",
+          "learn_cop": "Ucz sprawności pompy ciepła (wymaga pomiaru mocy)",
+          "apply_learned_values": "Używaj wyuczonych wartości w planowaniu"
+        }
+      },
+      "notifications": {
+        "title": "Powiadomienia",
+        "description": "Wybierz, które powiadomienia wysyłać.",
+        "data": {
+          "notify_tomorrow_prices": "Podsumowanie cen na jutro",
+          "notify_negative_prices": "Ujemne ceny jutro",
+          "notify_local_control": "Przejście na sterowanie lokalne",
+          "notify_stale_data": "Nieaktualne dane Pstryk",
+          "mqtt_heartbeat": "Heartbeat MQTT co 60 s (dla watchdoga Loxone)",
+          "notify_service": "Usługa powiadomień (np. notify.mobile_app_telefon; puste = powiadomienie HA)"
         }
       },
       "mqtt": {
@@ -290,7 +427,23 @@
           "topic_api_entsoe_status": "api/entsoe/status",
           "topic_api_pse_status": "api/pse/status",
           "topic_api_weather_status": "api/weather/status",
-          "topic_evcc_prices": "evcc/prices"
+          "topic_evcc_prices": "evcc/prices",
+          "topic_optimizer_buffer_heater_should_run": "optimizer/buffer/heater/should_run",
+          "topic_optimizer_buffer_heater_power": "optimizer/buffer/heater/power",
+          "topic_optimizer_buffer_soc": "optimizer/buffer/soc",
+          "topic_optimizer_dhw_should_heat": "optimizer/dhw/should_heat",
+          "topic_optimizer_dhw_mode": "optimizer/dhw/mode",
+          "topic_optimizer_dhw_target_temperature": "optimizer/dhw/target_temperature",
+          "topic_optimizer_dhw_next_start": "optimizer/dhw/next_start",
+          "topic_optimizer_dhw_schedule": "optimizer/dhw/schedule",
+          "topic_optimizer_dhw_heater_should_run": "optimizer/dhw/heater/should_run",
+          "topic_optimizer_dhw_heater_power": "optimizer/dhw/heater/power",
+          "topic_optimizer_dhw_soc": "optimizer/dhw/soc",
+          "topic_optimizer_valve": "optimizer/valve",
+          "topic_spends_summary": "spends/summary",
+          "topic_spends_daily": "spends/daily",
+          "topic_spends_monthly": "spends/monthly",
+          "topic_heartbeat": "heartbeat"
         }
       },
       "panel": {
@@ -312,7 +465,15 @@
           "forecast": "Prognozowanie",
           "optimization": "Optymalizacja",
           "buffer": "Bufor ciepła",
-          "mqtt": "MQTT"
+          "mqtt": "MQTT",
+          "tariff": "Taryfa dystrybucyjna",
+          "buffer_heater": "Grzałka bufora",
+          "dhw": "Ciepła woda (CWU)",
+          "dhw_heater": "Grzałka CWU",
+          "power": "Limit mocy i pomiary",
+          "pv": "Autokonsumpcja PV",
+          "learning": "Uczenie",
+          "notifications": "Powiadomienia"
         }
       }
     },
@@ -328,7 +489,12 @@
       "entsoe_token_required": "To źródło wymaga tokenu ENTSO-E",
       "invalid_profiles": "Nieprawidłowy JSON profili urządzeń",
       "invalid_temperature_range": "Maksimum musi być wyższe od minimum",
-      "invalid_prefix": "Nieprawidłowy prefiks tematu MQTT"
+      "invalid_prefix": "Nieprawidłowy prefiks tematu MQTT",
+      "invalid_steps": "Podaj stopnie mocy jak 2,4,6",
+      "invalid_number": "Podaj liczbę",
+      "invalid_times": "Podaj godziny jak 06:00,19:00",
+      "invalid_hours": "Podaj zakresy godzin jak 22-6,13-15",
+      "invalid_notify_service": "Podaj usługę notify, np. notify.mobile_app_telefon"
     }
   },
   "selector": {
@@ -365,6 +531,39 @@
         "0": "0",
         "1": "1",
         "2": "2"
+      }
+    },
+    "heater_kind": {
+      "options": {
+        "electric": "Elektryczna",
+        "gas": "Kocioł gazowy"
+      }
+    },
+    "command_format": {
+      "options": {
+        "binary": "Wł./wył. (1/0)",
+        "power_kw": "Moc w kW"
+      }
+    },
+    "dhw_heat_pump_mode": {
+      "options": {
+        "valve": "Wspólna pompa ciepła z zaworem przełączającym",
+        "none": "Pompa nie grzeje CWU (tylko grzałka)"
+      }
+    },
+    "power_unit": {
+      "options": {
+        "kW": "kW",
+        "W": "W"
+      }
+    },
+    "distribution_tariff": {
+      "options": {
+        "none": "Stała stawka (z kroku Pstryk)",
+        "G11": "G11",
+        "G12": "G12",
+        "G12w": "G12w",
+        "G13": "G13"
       }
     }
   },
@@ -479,7 +678,93 @@
         "name": "Następne okno grzania"
       },
       "buffer_temperature": {
-        "name": "Temperatura bufora (odczyt)"
+        "name": "Temperatura bufora – góra"
+      },
+      "buffer_bottom_temperature": {
+        "name": "Temperatura bufora – dół"
+      },
+      "buffer_soc": {
+        "name": "Naładowanie bufora"
+      },
+      "buffer_heater_power": {
+        "name": "Grzałka bufora – zalecana moc"
+      },
+      "dhw_top_temperature": {
+        "name": "Temperatura CWU – góra"
+      },
+      "dhw_bottom_temperature": {
+        "name": "Temperatura CWU – dół"
+      },
+      "dhw_soc": {
+        "name": "Naładowanie CWU"
+      },
+      "dhw_target_temperature": {
+        "name": "Zalecana temperatura CWU"
+      },
+      "dhw_next_window": {
+        "name": "Następne grzanie CWU"
+      },
+      "dhw_expected_cost": {
+        "name": "Prognozowany koszt CWU"
+      },
+      "dhw_plan_reason": {
+        "name": "Uzasadnienie planu CWU"
+      },
+      "dhw_heater_power": {
+        "name": "Grzałka CWU – zalecana moc"
+      },
+      "legionella": {
+        "name": "Antylegionella – ostatni cykl"
+      },
+      "valve_position": {
+        "name": "Zawór pompy ciepła",
+        "state": {
+          "buffer": "Bufor",
+          "dhw": "CWU",
+          "idle": "Postój"
+        }
+      },
+      "distribution_zone": {
+        "name": "Strefa taryfy dystrybucyjnej",
+        "state": {
+          "flat": "Stała",
+          "peak": "Szczyt / dzienna",
+          "offpeak": "Pozaszczyt / nocna",
+          "peak2": "Szczyt popołudniowy"
+        }
+      },
+      "pv_production_today": {
+        "name": "Produkcja PV dziś (prognoza)"
+      },
+      "pv_surplus_now": {
+        "name": "Nadwyżka PV teraz"
+      },
+      "hp_energy_today": {
+        "name": "Zużycie pompy ciepła dziś"
+      },
+      "hp_cost_today": {
+        "name": "Koszt pompy ciepła dziś"
+      },
+      "heaters_energy_today": {
+        "name": "Zużycie grzałek dziś"
+      },
+      "cost_yesterday": {
+        "name": "Koszt energii wczoraj"
+      },
+      "cost_previous_month": {
+        "name": "Koszt energii w poprzednim miesiącu"
+      },
+      "cost_12_months": {
+        "name": "Koszt energii – ostatnie 12 miesięcy"
+      },
+      "avg_daily_cost": {
+        "name": "Średni dzienny koszt energii"
+      },
+      "projected_month_cost": {
+        "name": "Prognozowany koszt miesiąca"
+      },
+      "learning_status": {
+        "name": "Uczenie parametrów"
       },
       "outdoor_temperature": {
         "name": "Temperatura zewnętrzna (odczyt)"
@@ -545,6 +830,15 @@
       },
       "buffer_should_heat": {
         "name": "Zalecane grzanie bufora"
+      },
+      "dhw_should_heat": {
+        "name": "Zalecane grzanie CWU"
+      },
+      "buffer_heater_should_run": {
+        "name": "Zalecana praca grzałki bufora"
+      },
+      "dhw_heater_should_run": {
+        "name": "Zalecana praca grzałki CWU"
       }
     },
     "switch": {
@@ -559,6 +853,24 @@
       },
       "advisory_mode": {
         "name": "Tryb doradczy"
+      },
+      "dhw_enabled": {
+        "name": "Optymalizacja CWU"
+      },
+      "buffer_heater_enabled": {
+        "name": "Grzałka bufora"
+      },
+      "dhw_heater_enabled": {
+        "name": "Grzałka CWU"
+      },
+      "pv_enabled": {
+        "name": "Autokonsumpcja PV"
+      },
+      "power_limit_enabled": {
+        "name": "Limit mocy przyłącza"
+      },
+      "optimize_all_in": {
+        "name": "Optymalizacja wg ceny z dystrybucją"
       }
     },
     "button": {

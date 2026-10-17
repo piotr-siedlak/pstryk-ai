@@ -32,6 +32,10 @@ class PstrykAIData:
     windows: dict[str, Window | None] = field(default_factory=dict)
     schedules: list[DeviceSchedule] = field(default_factory=list)
     buffer: BufferPlan | None = None
+    dhw: BufferPlan | None = None
+    heat: Any = None  # HeatSystemPlan
+    spends: Any = None  # SpendsSummary
+    pv: dict[str, Any] = field(default_factory=dict)
     providers: dict[str, dict[str, Any]] = field(default_factory=dict)
     model_info: dict[str, Any] = field(default_factory=dict)
     flags: dict[str, Any] = field(default_factory=dict)
@@ -278,3 +282,13 @@ def build_messages(
 
 def _r(value: float | None) -> float | None:
     return None if value is None else round(value, 4)
+
+
+def spend_messages(spends: Any, now: datetime) -> list[Message]:
+    """Pstryk spending summary topics (daily/monthly history)."""
+    valid = now + timedelta(hours=6)
+    return [
+        Message("spends/summary", envelope("spends_summary", spends.to_dict(), now, valid, "PLN")),
+        Message("spends/daily", envelope("spends_daily", spends.days, now, valid, "PLN")),
+        Message("spends/monthly", envelope("spends_monthly", spends.months, now, valid, "PLN")),
+    ]

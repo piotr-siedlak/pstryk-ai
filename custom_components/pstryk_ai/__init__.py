@@ -102,6 +102,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: PstrykAIConfigEntry) -> 
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """1.1 -> 1.2: the single buffer temperature becomes the buffer *top* sensor."""
+    if entry.version > 1:
+        return False
+    if entry.version == 1 and entry.minor_version < 2:
+        options = dict(entry.options)
+        for old, new in (
+            ("buffer_temperature_topic", "buffer_top_topic"),
+            ("buffer_temperature_json_key", "buffer_top_json_key"),
+            ("buffer_temperature_entity", "buffer_top_entity"),
+        ):
+            if old in options:
+                value = options.pop(old)
+                if value and not options.get(new):
+                    options[new] = value
+        hass.config_entries.async_update_entry(entry, options=options, minor_version=2)
+        _LOGGER.info("Migrated Pstryk AI config entry to 1.2 (buffer top/bottom sensors)")
+    return True
+
+
 async def _async_options_updated(hass: HomeAssistant, entry: PstrykAIConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
