@@ -9,12 +9,14 @@ on:
 
 jobs:
   hassfest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: home-assistant/actions/hassfest@master
   hacs:
-    runs-on: ubuntu-latest
+    # The HACS action (and HACS itself) only works with public repositories.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
     steps:
       - uses: hacs/action@main
         with:

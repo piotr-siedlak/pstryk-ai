@@ -57,7 +57,7 @@
       },
       "optimization": {
         "title": "Optymalizacja",
-        "description": "Preferencje tanich godzin i profile urządzeń. Przykład: [{\"name\": \"Pralka\", \"power_kw\": 2, \"duration_h\": 2, \"consecutive\": true}]",
+        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Liczba najtańszych godzin",
           "price_threshold": "Bezwzględny próg taniej ceny",
@@ -184,7 +184,7 @@
       },
       "optimization": {
         "title": "Optymalizacja",
-        "description": "Preferencje tanich godzin i profile urządzeń. Przykład: [{\"name\": \"Pralka\", \"power_kw\": 2, \"duration_h\": 2, \"consecutive\": true}]",
+        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Liczba najtańszych godzin",
           "price_threshold": "Bezwzględny próg taniej ceny",

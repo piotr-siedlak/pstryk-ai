@@ -278,6 +278,21 @@ async def test_tomorrow_placeholder_then_confirmed_event(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_no_tomorrow_retry_before_noon(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer) -> None:
+    freezer.move_to("2026-10-17T07:30:00Z")  # 09:30 local
+    pm = PstrykMock()
+    pm.tomorrow = False
+    aioclient_mock.get(PSTRYK_URL, side_effect=pm)
+    _mock_public_apis(aioclient_mock)
+    entry = _entry(mqtt_enabled=False)
+    await _setup(hass, entry)
+    calls = len(pm.calls)
+    entry.runtime_data.pstryk.budget._calls.clear()
+    await entry.runtime_data.async_refresh_pstryk(prices_only=True)
+    assert len(pm.calls) == calls  # prices are not published before ~13:00, no budget wasted
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_restart_recovery_keeps_confirmed_prices(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:

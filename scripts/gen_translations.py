@@ -253,11 +253,11 @@ STEPS = {
     "optimization": (
         (
             "Optimization",
-            'Cheapest-hour preferences and device profiles. Example: [{"name": "Pralka", "power_kw": 2, "duration_h": 2, "consecutive": true}]',
+            "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
         ),
         (
             "Optymalizacja",
-            'Preferencje tanich godzin i profile urządzeń. Przykład: [{"name": "Pralka", "power_kw": 2, "duration_h": 2, "consecutive": true}]',
+            "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
         ),
     ),
     "buffer": (

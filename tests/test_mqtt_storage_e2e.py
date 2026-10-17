@@ -142,13 +142,20 @@ async def test_publisher_skips_when_disconnected_and_recovers(hass: HomeAssistan
     hass.config.components.add("mqtt")
     with (
         patch("homeassistant.components.mqtt.is_connected", return_value=True),
-        patch("homeassistant.components.mqtt.async_publish", new=AsyncMock()) as publish,
+        patch("homeassistant.components.mqtt.async_publish", autospec=True) as publish,
     ):
         sent = await pub.async_publish([Message("a", "1"), Message("b/c", "2", retain=False, expiry_s=120)], now)
     assert sent == 2
     assert publish.call_args_list[0].args[1] == "pstryk_ai/home/a"
     assert publish.call_args_list[1].kwargs["retain"] is False
-    assert publish.call_args_list[1].kwargs["message_expiry_interval"] == 120
+    from homeassistant.components import mqtt
+
+    from custom_components.pstryk_ai.mqtt.publisher import _supports_expiry
+
+    if _supports_expiry(mqtt.async_publish):
+        assert publish.call_args_list[1].kwargs["message_expiry_interval"] == 120
+    else:
+        assert "message_expiry_interval" not in publish.call_args_list[1].kwargs
     assert pub.status in ("ok", "disconnected")
 
 
@@ -214,3 +221,20 @@ async def test_buffer_without_sensor_falls_back(hass: HomeAssistant, aioclient_m
     assert should.attributes["mode"] == "fallback"
     assert "lokalne" in should.attributes["reason"]
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_publisher_works_without_message_expiry_support(hass: HomeAssistant) -> None:
+    """Older Home Assistant releases have no MQTT v5 expiry argument."""
+    calls: list = []
+
+    async def legacy_publish(hass, topic, payload, qos=0, retain=False, encoding="utf-8"):
+        calls.append((topic, retain))
+
+    pub = MqttPublisher(hass, "p")
+    hass.config.components.add("mqtt")
+    with (
+        patch("homeassistant.components.mqtt.is_connected", return_value=True),
+        patch("homeassistant.components.mqtt.async_publish", new=legacy_publish),
+    ):
+        sent = await pub.async_publish([Message("x", "1", retain=False, expiry_s=60)], datetime.now(UTC))
+    assert sent == 1 and calls == [("p/x", False)]

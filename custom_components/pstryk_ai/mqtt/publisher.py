@@ -10,6 +10,7 @@ replayed to Loxone after an outage.
 from __future__ import annotations
 
 from datetime import datetime
+import inspect
 import logging
 
 from homeassistant.core import HomeAssistant
@@ -68,17 +69,14 @@ class MqttPublisher:
             return 0
         from homeassistant.components import mqtt
 
+        expiry_supported = _supports_expiry(mqtt.async_publish)
         sent = 0
         for msg in messages:
+            kwargs: dict = {"qos": self.qos, "retain": msg.retain and self.retain}
+            if msg.expiry_s is not None and expiry_supported:
+                kwargs["message_expiry_interval"] = msg.expiry_s
             try:
-                await mqtt.async_publish(
-                    self.hass,
-                    self.topic(msg.topic),
-                    msg.payload,
-                    qos=self.qos,
-                    retain=msg.retain and self.retain,
-                    message_expiry_interval=msg.expiry_s,
-                )
+                await mqtt.async_publish(self.hass, self.topic(msg.topic), msg.payload, **kwargs)
                 sent += 1
             except HomeAssistantError as err:
                 self.last_error = str(err)[:120]
@@ -96,3 +94,11 @@ class MqttPublisher:
         from homeassistant.components import mqtt
 
         await mqtt.async_publish(self.hass, topic, payload, qos=self.qos, retain=retain)
+
+
+def _supports_expiry(func: object) -> bool:
+    """MQTT v5 message expiry is only available in newer Home Assistant releases."""
+    try:
+        return "message_expiry_interval" in inspect.signature(func).parameters  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False

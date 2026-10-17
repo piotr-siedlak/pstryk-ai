@@ -57,7 +57,7 @@
       },
       "optimization": {
         "title": "Optimization",
-        "description": "Cheapest-hour preferences and device profiles. Example: [{\"name\": \"Pralka\", \"power_kw\": 2, \"duration_h\": 2, \"consecutive\": true}]",
+        "description": "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Number of cheapest hours",
           "price_threshold": "Absolute cheap price threshold",
@@ -184,7 +184,7 @@
       },
       "optimization": {
         "title": "Optimization",
-        "description": "Cheapest-hour preferences and device profiles. Example: [{\"name\": \"Pralka\", \"power_kw\": 2, \"duration_h\": 2, \"consecutive\": true}]",
+        "description": "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Number of cheapest hours",
           "price_threshold": "Absolute cheap price threshold",

@@ -91,6 +91,20 @@ def synthetic_market(start: datetime, hours: int, seed: int = 3) -> dict[datetim
     return out
 
 
+@pytest.fixture(autouse=True)
+def _frozen_clock(request: pytest.FixtureRequest) -> None:
+    """Run every test at a fixed afternoon time (14:30 Europe/Warsaw).
+
+    Behaviour depends on the time of day (e.g. tomorrow's prices are only
+    fetched after noon), so tests must not depend on when CI runs.
+    Override with PSTRYK_TEST_NOW=<ISO time> to explore other times.
+    """
+    import os
+
+    freezer = request.getfixturevalue("freezer")
+    freezer.move_to(os.environ.get("PSTRYK_TEST_NOW", "2026-10-16T12:30:00Z"))
+
+
 @pytest.fixture
 def market_history() -> dict[datetime, float]:
     return synthetic_market(datetime(2025, 9, 1, tzinfo=UTC), 24 * 410)

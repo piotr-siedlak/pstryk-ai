@@ -12,7 +12,9 @@ planuje pracę urządzeń i **bufora ciepła**, a wyniki udostępnia w Home Assi
 2. *Ustawienia → Urządzenia i usługi → Dodaj integrację → Pstryk AI*.
 3. Strefa czasowa HA: `Europe/Warsaw`.
 
-Wymagania: Home Assistant 2025.6+ (testowane 2026.10), klucz API Pstryk; opcjonalnie MQTT i bezpłatny token ENTSO-E (zalecany).
+> HACS instaluje wyłącznie z **publicznego** repozytorium GitHub. Dopóki repozytorium jest prywatne, skopiuj katalog `custom_components/pstryk_ai` do `<config>/custom_components/` i zrestartuj HA.
+
+Wymagania: Home Assistant 2026.2+ (testowane 2026.2 i 2026.10), klucz API Pstryk; opcjonalnie MQTT i bezpłatny token ENTSO-E (zalecany).
 
 ### Klucz API Pstryk
 Klucz generujesz w aplikacji Pstryk. Kreator sprawdza go **jednym** zapytaniem (darmowe API: 3 zapytania/godz.). Klucz nie jest

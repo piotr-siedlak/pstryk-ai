@@ -1,12 +1,14 @@
 # Installation
 
 ## Requirements
-* Home Assistant 2025.6 or newer (tested with 2026.10).
+* Home Assistant 2026.2 or newer (tested with 2026.2 and 2026.10).
 * A Pstryk.pl contract and an API key generated in the Pstryk app.
 * Optional: MQTT integration configured in Home Assistant (Mosquitto add-on or any broker).
 * Optional, recommended: free ENTSO-E Transparency security token for day-ahead price history.
 
 ## HACS (custom repository)
+> HACS can only install from a **public** GitHub repository. While the repository is private use the manual installation below.
+
 1. HACS → ⋮ → *Custom repositories* → URL `https://github.com/piotr-siedlak/pstryk-ai`, category *Integration*.
 2. Install **Pstryk AI**, restart Home Assistant.
 3. *Settings → Devices & services → Add integration → Pstryk AI*.

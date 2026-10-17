@@ -16,4 +16,4 @@ All notable changes are documented here. The project follows [Semantic Versionin
 - Home Assistant: multi-step config flow, options menu, reauth, Polish entity names, sensors/binary sensors/switches/numbers/selects/
   buttons, services, events, diagnostics, repairs.
 - MQTT: versioned topics, per-day forecast topics, retained data with validity, expiring non-retained control topic, discovery, EVCC.
-- Documentation (EN/PL), dashboards, Loxone/Node-RED/automation examples, 87 automated tests.
+- Documentation (EN/PL), dashboards, Loxone/Node-RED/automation examples, 89 automated tests (Home Assistant 2026.2 and 2026.10).
