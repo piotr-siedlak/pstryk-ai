@@ -83,6 +83,12 @@ TOPICS: tuple[str, ...] = (
     "heartbeat",
     "optimizer/buffer/hp_modulation",
     "optimizer/dhw/hp_modulation",
+    "optimizer/buffer/boost",
+    "optimizer/buffer/boost_target",
+    "optimizer/buffer/strategy",
+    "optimizer/dhw/boost",
+    "optimizer/dhw/boost_target",
+    "optimizer/dhw/strategy",
 )
 
 _INVALID = set("#+\0")

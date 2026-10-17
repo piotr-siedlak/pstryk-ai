@@ -8,9 +8,15 @@ from typing import Any
 from .const import (
     COMMAND_BINARY,
     CONF_BASE_LOAD_KW,
+    CONF_BOOST_FORMAT,
+    CONF_BOOST_SHARE,
+    CONF_BOOST_T,
+    CONF_BOOST_TOPIC,
     CONF_BUFFER_BOTTOM_ENTITY,
     CONF_BUFFER_BOTTOM_KEY,
     CONF_BUFFER_BOTTOM_TOPIC,
+    CONF_DHW_BOOST_T,
+    CONF_DHW_BOOST_TOPIC,
     CONF_DHW_BOTTOM_ENTITY,
     CONF_DHW_BOTTOM_KEY,
     CONF_DHW_BOTTOM_TOPIC,
@@ -42,6 +48,7 @@ from .const import (
     CONF_HP_POWER_ENTITY,
     CONF_HP_POWER_KEY,
     CONF_HP_POWER_TOPIC,
+    CONF_HP_STRATEGY,
     CONF_LEARN_APPLY,
     CONF_LEARN_COP,
     CONF_LEARN_DHW_PROFILE,
@@ -131,6 +138,13 @@ class ExtSettings:
     buffer_bottom: SensorSource = field(default_factory=SensorSource)
     hp_max_t: float = 55.0
     hp_levels: tuple[float, ...] = (0.3, 0.65, 1.0)
+    hp_strategy: str = "boost"  # boost = heat pump decides, we only boost at 100 % | full = complete control
+    boost_t: float = 55.0
+    boost_share: float = 0.4  # candidate hours: cheapest share of the next 24 h
+    boost_topic: str | None = None
+    boost_format: str = "binary"
+    dhw_boost_t: float = 55.0
+    dhw_boost_topic: str | None = None
     buffer_heater: HeaterSettings = field(default_factory=HeaterSettings)
     dhw: DhwSettings = field(default_factory=DhwSettings)
     dhw_heater: HeaterSettings = field(default_factory=HeaterSettings)
@@ -260,6 +274,13 @@ def load_ext(c: dict[str, Any]) -> ExtSettings:
         ),
         hp_max_t=_f(c, CONF_HP_MAX_T, 55.0),
         hp_levels=hp_levels(_f(c, CONF_HP_MIN_MODULATION, DEFAULT_HP_MIN_MODULATION)),
+        hp_strategy="full" if (_s(c, CONF_HP_STRATEGY) or "boost").lower() == "full" else "boost",
+        boost_t=_f(c, CONF_BOOST_T, 55.0),
+        boost_share=max(0.05, min(1.0, _f(c, CONF_BOOST_SHARE, 40.0) / 100)),
+        boost_topic=_s(c, CONF_BOOST_TOPIC),
+        boost_format="setpoint" if (_s(c, CONF_BOOST_FORMAT) or "").lower() == "setpoint" else "binary",
+        dhw_boost_t=_f(c, CONF_DHW_BOOST_T, 55.0),
+        dhw_boost_topic=_s(c, CONF_DHW_BOOST_TOPIC),
         buffer_heater=load_heater(c, "buffer"),
         dhw=dhw,
         dhw_heater=load_heater(c, "dhw"),

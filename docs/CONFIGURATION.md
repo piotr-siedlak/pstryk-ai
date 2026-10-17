@@ -40,7 +40,7 @@ Sell price for non-confirmed hours follows Pstryk's documented formula `max(TGE,
 
 ## Runtime controls (no reload)
 Switches *Optymalizacja, Optymalizacja bufora, Publikacja MQTT, Tryb doradczy*; numbers *Maksymalna/Minimalna temperatura bufora, Próg ceny,
-Liczba najtańszych godzin*; selects *Model prognozy, Strategia bufora*; buttons *Przelicz prognozę, Przelicz harmonogram, Trenuj model, Importuj dane*.
+Liczba najtańszych godzin*; selects *Model prognozy, Strategia bufora, Strategia sterowania pompą* (Tylko doładowanie / Pełne sterowanie); buttons *Przelicz prognozę, Przelicz harmonogram, Trenuj model, Importuj dane*.
 
 ## Services
 `pstryk_ai.recalculate_forecast`, `pstryk_ai.recalculate_schedule`, `pstryk_ai.retrain_model`, `pstryk_ai.run_backtest`,

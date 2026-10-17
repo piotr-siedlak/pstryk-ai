@@ -81,6 +81,11 @@
           "buffer_bottom_json_key": "Buffer BOTTOM – JSON key (optional)",
           "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
           "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
+          "heat_pump_strategy": "Heat pump strategy",
+          "boost_temperature": "Boost temperature (100 % up to)",
+          "boost_cheap_share": "Boost only in the cheapest share of the next 24 h",
+          "boost_command_topic": "Boost command topic (optional, control mode only)",
+          "boost_command_format": "Boost command format",
           "heat_pump_max_supply_temperature": "Heat pump maximum supply temperature",
           "heat_pump_min_modulation": "Heat pump minimum modulation (100 % = on/off compressor)",
           "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
@@ -244,6 +249,11 @@
           "buffer_bottom_json_key": "Buffer BOTTOM – JSON key (optional)",
           "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
           "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
+          "heat_pump_strategy": "Heat pump strategy",
+          "boost_temperature": "Boost temperature (100 % up to)",
+          "boost_cheap_share": "Boost only in the cheapest share of the next 24 h",
+          "boost_command_topic": "Boost command topic (optional, control mode only)",
+          "boost_command_format": "Boost command format",
           "heat_pump_max_supply_temperature": "Heat pump maximum supply temperature",
           "heat_pump_min_modulation": "Heat pump minimum modulation (100 % = on/off compressor)",
           "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
@@ -304,7 +314,9 @@
           "dhw_valve_command_topic": "Switching-valve command topic (optional, control mode)",
           "legionella_enabled": "Legionella protection cycle",
           "legionella_temperature": "Legionella temperature",
-          "legionella_interval_days": "Legionella interval"
+          "legionella_interval_days": "Legionella interval",
+          "dhw_boost_temperature": "CWU boost temperature",
+          "dhw_boost_command_topic": "CWU boost command topic (optional, control mode only)"
         }
       },
       "dhw_heater": {
@@ -447,7 +459,13 @@
           "topic_spends_monthly": "spends/monthly",
           "topic_heartbeat": "heartbeat",
           "topic_optimizer_buffer_hp_modulation": "optimizer/buffer/hp_modulation",
-          "topic_optimizer_dhw_hp_modulation": "optimizer/dhw/hp_modulation"
+          "topic_optimizer_dhw_hp_modulation": "optimizer/dhw/hp_modulation",
+          "topic_optimizer_buffer_boost": "optimizer/buffer/boost",
+          "topic_optimizer_buffer_boost_target": "optimizer/buffer/boost_target",
+          "topic_optimizer_buffer_strategy": "optimizer/buffer/strategy",
+          "topic_optimizer_dhw_boost": "optimizer/dhw/boost",
+          "topic_optimizer_dhw_boost_target": "optimizer/dhw/boost_target",
+          "topic_optimizer_dhw_strategy": "optimizer/dhw/strategy"
         }
       },
       "panel": {
@@ -559,6 +577,18 @@
       "options": {
         "kw": "kW",
         "w": "W"
+      }
+    },
+    "heat_pump_strategy": {
+      "options": {
+        "boost": "Boost only – heat pump decides, 100 % boosts in cheap hours",
+        "full": "Full control (modulation every hour)"
+      }
+    },
+    "boost_command_format": {
+      "options": {
+        "binary": "On/off (1/0)",
+        "setpoint": "Setpoint in °C (0 = off)"
       }
     },
     "distribution_tariff": {
@@ -919,6 +949,13 @@
         "state": {
           "min_cost": "Minimalny koszt",
           "comfort": "Komfort"
+        }
+      },
+      "heat_pump_strategy": {
+        "name": "Strategia sterowania pompą",
+        "state": {
+          "boost": "Tylko doładowanie 100% w tanich godzinach",
+          "full": "Pełne sterowanie"
         }
       }
     }

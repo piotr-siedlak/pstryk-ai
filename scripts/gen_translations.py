@@ -120,6 +120,7 @@ ENTITIES = {
     "select": {
         "forecast_model": "Model prognozy",
         "buffer_strategy": "Strategia bufora",
+        "heat_pump_strategy": "Strategia sterowania pompą",
     },
 }
 
@@ -136,6 +137,7 @@ STATUS_STATES = {
 SELECT_STATES = {
     "forecast_model": {"auto": "Automatyczny (zespół)", "baseline": "Bazowy sezonowy", "ridge": "Regresja grzbietowa"},
     "buffer_strategy": {"min_cost": "Minimalny koszt", "comfort": "Komfort"},
+    "heat_pump_strategy": {"boost": "Tylko doładowanie 100% w tanich godzinach", "full": "Pełne sterowanie"},
 }
 
 FIELDS = {
@@ -309,6 +311,12 @@ TOPICS = [
     "heartbeat",
     "optimizer/buffer/hp_modulation",
     "optimizer/dhw/hp_modulation",
+    "optimizer/buffer/boost",
+    "optimizer/buffer/boost_target",
+    "optimizer/buffer/strategy",
+    "optimizer/dhw/boost",
+    "optimizer/dhw/boost_target",
+    "optimizer/dhw/strategy",
 ]
 
 STEPS = {
@@ -716,6 +724,26 @@ FIELDS.update(
         ),
     }
 )
+FIELDS.update(
+    {
+        "heat_pump_strategy": ("Heat pump strategy", "Strategia sterowania pompą"),
+        "boost_temperature": ("Boost temperature (100 % up to)", "Temperatura doładowania (100% do)"),
+        "boost_cheap_share": (
+            "Boost only in the cheapest share of the next 24 h",
+            "Doładowanie tylko w najtańszej części najbliższych 24 h",
+        ),
+        "boost_command_topic": (
+            "Boost command topic (optional, control mode only)",
+            "Temat polecenia doładowania (opcjonalnie, tylko tryb sterowania)",
+        ),
+        "boost_command_format": ("Boost command format", "Format polecenia doładowania"),
+        "dhw_boost_temperature": ("CWU boost temperature", "Temperatura doładowania CWU"),
+        "dhw_boost_command_topic": (
+            "CWU boost command topic (optional, control mode only)",
+            "Temat polecenia doładowania CWU (opcjonalnie, tylko tryb sterowania)",
+        ),
+    }
+)
 FIELDS["heat_pump_min_modulation"] = (
     "Heat pump minimum modulation (100 % = on/off compressor)",
     "Minimalna modulacja pompy ciepła (100 % = sprężarka wł./wył.)",
@@ -733,6 +761,11 @@ STEP_FIELDS["buffer"] = [
     "buffer_bottom_json_key",
     "outdoor_temperature_topic",
     "outdoor_temperature_json_key",
+    "heat_pump_strategy",
+    "boost_temperature",
+    "boost_cheap_share",
+    "boost_command_topic",
+    "boost_command_format",
     "heat_pump_max_supply_temperature",
     "heat_pump_min_modulation",
     "mqtt_input_max_age_minutes",
@@ -875,6 +908,17 @@ SELECTORS.update(
             "none": ("Heat pump does not heat CWU (heater only)", "Pompa nie grzeje CWU (tylko grzałka)"),
         },
         "power_unit": {"kw": ("kW", "kW"), "w": ("W", "W")},
+        "heat_pump_strategy": {
+            "boost": (
+                "Boost only – heat pump decides, 100 % boosts in cheap hours",
+                "Tylko doładowanie – pompa decyduje sama, 100% w tanich godzinach",
+            ),
+            "full": ("Full control (modulation every hour)", "Pełne sterowanie (modulacja co godzinę)"),
+        },
+        "boost_command_format": {
+            "binary": ("On/off (1/0)", "Wł./wył. (1/0)"),
+            "setpoint": ("Setpoint in °C (0 = off)", "Nastawa w °C (0 = wył.)"),
+        },
         "distribution_tariff": {
             "none": ("Flat rate (from the Pstryk step)", "Stała stawka (z kroku Pstryk)"),
             "g11": ("G11", "G11"),

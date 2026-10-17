@@ -16,6 +16,7 @@ from datetime import datetime
 
 from ..models.optimizer import BufferPlan
 from ..models.price_slot import PriceSlot, iso
+from .boost import plan_boost
 from .heat_pump import CopModel
 from .thermal_storage import BufferConfig, plan_buffer
 
@@ -29,6 +30,9 @@ class StorageInput:
     cfg: BufferConfig
     current_t: float | None  # mean temperature (None -> fallback)
     stale: bool = False
+    strategy: str = "full"  # full = complete control, boost = heat pump alone + 100 % boosts
+    boost_t: float | None = None
+    boost_percentile: float = 0.4
 
 
 @dataclass(slots=True)
@@ -77,20 +81,29 @@ def plan_heat_system(
         if power_limit_kw is not None:
             cap = [max(0.0, power_limit_kw - other.get(s.start, 0.0) - used_elec[i]) for i, s in enumerate(horizon)]
         stale = item.stale or item.current_t is None
-        plan = plan_buffer(
-            item.cfg,
-            cop,
-            now=now,
-            current_t=item.current_t if item.current_t is not None else item.cfg.target_t,
-            slots=horizon,
-            outdoor_forecast=outdoor_forecast,
-            advisory=advisory,
-            stale=stale,
-            hp_available=hp_free if shared_hp else None,
-            cap_kw=cap,
-            sell_prices=sell_prices,
-            surplus_kwh=remaining_surplus,
-        )
+        common = {
+            "now": now,
+            "current_t": item.current_t if item.current_t is not None else item.cfg.target_t,
+            "slots": horizon,
+            "outdoor_forecast": outdoor_forecast,
+            "advisory": advisory,
+            "stale": stale,
+            "hp_available": hp_free if shared_hp else None,
+            "cap_kw": cap,
+            "sell_prices": sell_prices,
+            "surplus_kwh": remaining_surplus,
+        }
+        boost = item.strategy == "boost"
+        if boost:
+            plan = plan_boost(
+                item.cfg,
+                cop,
+                boost_t=item.boost_t if item.boost_t is not None else item.cfg.max_t,
+                boost_percentile=item.boost_percentile,
+                **common,
+            )
+        else:
+            plan = plan_buffer(item.cfg, cop, **common)
         plan.name = name
         if stale and fallback_reason and name in fallback_reason:
             plan.optimization_reason = fallback_reason[name]
@@ -98,7 +111,8 @@ def plan_heat_system(
             if i >= len(horizon):
                 break
             used_elec[i] += step.electric_kwh
-            if step.hp_kwh > 0 and shared_hp:
+            # in boost mode the heat pump's own work is not ours to schedule – only boosts occupy it
+            if shared_hp and (step.heat_fraction > 0 if boost else step.hp_kwh > 0):
                 hp_free[i] = False
             start = horizon[i].start
             if start in remaining_surplus:
@@ -111,7 +125,8 @@ def plan_heat_system(
         position = VALVE_IDLE
         for name in order:
             steps = result.plans[name].steps
-            if i < len(steps) and steps[i].hp_kwh > 0:
+            boosting = result.plans[name].strategy == "boost"
+            if i < len(steps) and (steps[i].heat_fraction > 0 if boosting else steps[i].hp_kwh > 0):
                 position = VALVE_DHW if name == "dhw" else VALVE_BUFFER
                 break
         start = next((result.plans[k].steps[i].start for k in order if i < len(result.plans[k].steps)), None)
