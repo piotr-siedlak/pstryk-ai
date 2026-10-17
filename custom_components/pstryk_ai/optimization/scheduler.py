@@ -37,7 +37,45 @@ def schedule_device(
     risk_aversion: float = 0.0,
     default_horizon_h: int = 24,
     max_speculative_hours: int | None = None,
+    current_value: float | None = None,
 ) -> DeviceSchedule:
+    result = _schedule_device(
+        profile,
+        slots,
+        now,
+        risk_aversion=risk_aversion,
+        default_horizon_h=default_horizon_h,
+        max_speculative_hours=max_speculative_hours,
+        current_value=current_value,
+    )
+    result.current_value = current_value
+    result.target = profile.target
+    return result
+
+
+def _schedule_device(
+    profile: DeviceProfile,
+    slots: Sequence[PriceSlot],
+    now: datetime,
+    *,
+    risk_aversion: float,
+    default_horizon_h: int,
+    max_speculative_hours: int | None,
+    current_value: float | None,
+) -> DeviceSchedule:
+    if profile.enabled and profile.target is not None and current_value is not None and current_value >= profile.target:
+        return DeviceSchedule(
+            profile.name,
+            [],
+            0.0,
+            0.0,
+            True,
+            f"Cel osiągnięty ({current_value:.1f} ≥ {profile.target:.1f}) – praca niepotrzebna",
+        )
+    if profile.enabled and profile.temperature_topic and profile.target is not None and current_value is None:
+        reason_suffix = " (brak aktualnego odczytu MQTT – plan bez uwzględnienia celu)"
+    else:
+        reason_suffix = ""
     required = profile.required_hours
     earliest = max(now, profile.earliest_start) if profile.earliest_start else now
     deadline = profile.deadline or (now + timedelta(hours=default_horizon_h))
@@ -107,7 +145,7 @@ def schedule_device(
         expected_cost=cost,
         expected_energy_kwh=len(chosen) * profile.power_kw,
         feasible=True,
-        reason="Optymalny harmonogram w oknie planowania",
+        reason="Optymalny harmonogram w oknie planowania" + reason_suffix,
         next_start=chosen[0],
         next_stop=first_block_end,
     )

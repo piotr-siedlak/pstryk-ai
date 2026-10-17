@@ -16,6 +16,18 @@ Subscribe to:
 | `pstryk_ai/home/cheap/now` | `VI_PstrykCheap` | digital |
 | `pstryk_ai/home/availability` | `VTI_PstrykOnline` | text |
 
+### Publish temperatures for Pstryk AI
+Send the measured values from Loxone to MQTT (virtual output / MQTT gateway publish), e.g. every 1–5 minutes:
+
+| Loxone value | Topic | Payload |
+|---|---|---|
+| buffer temperature | `loxone/bufor/temperatura` | `41.3` |
+| outdoor temperature | `loxone/zewn/temperatura` | `-2.5` |
+| DHW tank temperature | `loxone/cwu/temperatura` | `52.0` |
+
+Enter these exact topics in *Pstryk AI → Configure → Thermal buffer* and in the device profile (`temperature_topic`). If Loxone stops
+publishing for longer than the configured age (default 30 min), Pstryk AI switches the buffer to `mode = fallback`.
+
 ## 2. Freshness watchdog
 `should_heat` is republished every hour (non-retained, expires after ~75 min). In Loxone:
 

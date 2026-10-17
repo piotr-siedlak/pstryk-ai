@@ -29,6 +29,8 @@ class DeviceProfile:
     required_energy_kwh: float | None = None
     enabled: bool = True
     consecutive: bool = False
+    temperature_topic: str | None = None  # exact MQTT topic with the current value (°C or SOC %)
+    temperature_key: str | None = None  # JSON key/path when the payload is JSON
 
     @property
     def slug(self) -> str:
@@ -88,6 +90,8 @@ class DeviceProfile:
             ),
             enabled=bool(data.get("enabled", True)),
             consecutive=bool(data.get("consecutive", False)),
+            temperature_topic=(str(data.get("temperature_topic") or data.get("value_topic") or "").strip() or None),
+            temperature_key=(str(data.get("temperature_key") or data.get("value_key") or "").strip() or None),
         )
 
 
@@ -123,10 +127,14 @@ class DeviceSchedule:
     reason: str
     next_start: datetime | None = None
     next_stop: datetime | None = None
+    current_value: float | None = None
+    target: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "profile": self.profile,
+            "current_value": self.current_value,
+            "target": self.target,
             "hours": [iso(s) for s in self.slots],
             "expected_cost": None if self.expected_cost is None else round(self.expected_cost, 4),
             "expected_energy_kwh": round(self.expected_energy_kwh, 3),

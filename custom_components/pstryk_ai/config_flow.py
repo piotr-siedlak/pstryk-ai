@@ -32,6 +32,8 @@ from .const import (
     CONF_BUFFER_STRATEGY,
     CONF_BUFFER_TARGET_T,
     CONF_BUFFER_TEMP_ENTITY,
+    CONF_BUFFER_TEMP_KEY,
+    CONF_BUFFER_TEMP_TOPIC,
     CONF_BUFFER_VOLUME_L,
     CONF_CHEAP_HOURS,
     CONF_DEVICE_PROFILES,
@@ -48,6 +50,7 @@ from .const import (
     CONF_HP_ELECTRIC_KW,
     CONF_HP_THERMAL_KW,
     CONF_INDOOR_BASE_T,
+    CONF_INPUT_MAX_AGE_MIN,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_MARKET_PROVIDER,
@@ -63,6 +66,8 @@ from .const import (
     CONF_MQTT_RETAIN,
     CONF_MQTT_TOPICS,
     CONF_OUTDOOR_TEMP_ENTITY,
+    CONF_OUTDOOR_TEMP_KEY,
+    CONF_OUTDOOR_TEMP_TOPIC,
     CONF_PRICE_INCLUDES_DISTRIBUTION,
     CONF_PRICE_THRESHOLD,
     CONF_PROSUMER,
@@ -91,6 +96,7 @@ from .const import (
     DEFAULT_HP_ELECTRIC_KW,
     DEFAULT_HP_THERMAL_KW,
     DEFAULT_INDOOR_BASE_T,
+    DEFAULT_INPUT_MAX_AGE_MIN,
     DEFAULT_MAX_SPECULATIVE_H,
     DEFAULT_MAX_STARTS,
     DEFAULT_MIN_OFFTIME_H,
@@ -251,6 +257,11 @@ def schema_buffer(v: Mapping[str, Any]) -> vol.Schema:
             fields[vol.Optional(key, default=v[key])] = temp_sel
         else:
             fields[vol.Optional(key)] = temp_sel
+    for key in (CONF_BUFFER_TEMP_TOPIC, CONF_BUFFER_TEMP_KEY, CONF_OUTDOOR_TEMP_TOPIC, CONF_OUTDOOR_TEMP_KEY):
+        fields[vol.Optional(key, description={"suggested_value": v.get(key) or ""})] = selector.TextSelector()
+    fields[vol.Required(CONF_INPUT_MAX_AGE_MIN, default=_d(v, CONF_INPUT_MAX_AGE_MIN, DEFAULT_INPUT_MAX_AGE_MIN))] = (
+        _num(2, 720, 1, "min")
+    )
     fields.update(
         {
             vol.Required(CONF_BUFFER_VOLUME_L, default=_d(v, CONF_BUFFER_VOLUME_L, DEFAULT_BUFFER_VOLUME_L)): _num(
@@ -312,6 +323,14 @@ def schema_mqtt(v: Mapping[str, Any]) -> vol.Schema:
     )
 
 
+def _valid_input_topic(value: Any) -> bool:
+    """Exact topic to subscribe to: empty, or no wildcards / empty levels."""
+    text = str(value or "").strip()
+    if not text:
+        return True
+    return "#" not in text and "+" not in text and all(text.strip("/").split("/")) and len(text) <= 250
+
+
 def validate_section(step: str, data: dict[str, Any]) -> dict[str, str]:
     errors: dict[str, str] = {}
     if step == "optimization":
@@ -320,12 +339,20 @@ def validate_section(step: str, data: dict[str, Any]) -> dict[str, str]:
             parsed = json.loads(raw)
             if not isinstance(parsed, list):
                 raise ValueError
-            if len(parse_profiles(parsed)) != len(parsed):
+            profiles = parse_profiles(parsed)
+            if len(profiles) != len(parsed):
                 raise ValueError
         except ValueError:
             errors[CONF_DEVICE_PROFILES] = "invalid_profiles"
+        else:
+            if not all(_valid_input_topic(p.temperature_topic) for p in profiles):
+                errors[CONF_DEVICE_PROFILES] = "invalid_input_topic"
     if step == "buffer" and float(data.get(CONF_BUFFER_MIN_T, 0)) >= float(data.get(CONF_BUFFER_MAX_T, 100)):
         errors[CONF_BUFFER_MAX_T] = "invalid_temperature_range"
+    if step == "buffer":
+        for key in (CONF_BUFFER_TEMP_TOPIC, CONF_OUTDOOR_TEMP_TOPIC):
+            if not _valid_input_topic(data.get(key)):
+                errors[key] = "invalid_input_topic"
     if step == "mqtt":
         prefix = str(data.get(CONF_MQTT_PREFIX, "")).strip()
         if not prefix or "#" in prefix or "+" in prefix:
@@ -341,6 +368,11 @@ def validate_section(step: str, data: dict[str, Any]) -> dict[str, str]:
 
 def _normalise(step: str, data: dict[str, Any]) -> dict[str, Any]:
     out = dict(data)
+    if step == "buffer":
+        # cleared optional text fields are omitted by the frontend -> store as "not set"
+        for key in (CONF_BUFFER_TEMP_TOPIC, CONF_BUFFER_TEMP_KEY, CONF_OUTDOOR_TEMP_TOPIC, CONF_OUTDOOR_TEMP_KEY):
+            out[key] = str(out.get(key) or "").strip()
+        out[CONF_INPUT_MAX_AGE_MIN] = int(out.get(CONF_INPUT_MAX_AGE_MIN, DEFAULT_INPUT_MAX_AGE_MIN))
     if CONF_MQTT_QOS in out:
         out[CONF_MQTT_QOS] = int(out[CONF_MQTT_QOS])
     for key in (

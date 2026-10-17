@@ -246,7 +246,11 @@ class PstrykAIPanel extends HTMLElement {
     const on = heat.state === "on";
     const mode = MODE[heat.attributes?.mode] || MODE.advisory;
     const steps = reason.attributes?.schedule || [];
-    const current = steps.length ? num(steps[0].t_start) : null;
+    const measured = this._st("buffer_temperature");
+    const current = num(measured?.state) ?? (steps.length ? num(steps[0].t_start) : null);
+    const srcLabel = { mqtt: "z MQTT", entity: "z czujnika HA", mqtt_stale: "MQTT – brak świeżego odczytu", none: "brak odczytu" }[
+      measured?.attributes?.source
+    ] || "";
     return `<div class="card buffer">
       <div class="card-head"><h2>Bufor ciepła</h2><span class="chip ${mode.cls}">${esc(mode.label)}</span></div>
       <div class="decision ${on ? "heat" : "idle"}" data-more="${esc(heat.entity_id)}">
@@ -255,7 +259,7 @@ class PstrykAIPanel extends HTMLElement {
         <div class="dec-sub">${esc(reason.state || "")}</div></div>
       </div>
       <div class="kv">
-        <div><span>Bufor teraz</span><b>${fmt(current, 1)} °C</b></div>
+        <div data-more="${esc(measured?.entity_id || "")}"><span>Bufor teraz</span><b>${fmt(current, 1)} °C</b><small>${esc(srcLabel)}</small></div>
         <div><span>Cel</span><b>${fmt(this._val("buffer_target_temperature"), 1)} °C</b></div>
         <div><span>Następne grzanie</span><b>${esc(plan.recommended_start ? this._dayTime(plan.recommended_start) : "–")}</b>
           <small>${plan.recommended_stop ? `do ${esc(this._time(plan.recommended_stop))}` : ""}</small></div>
@@ -567,7 +571,11 @@ class PstrykAIPanel extends HTMLElement {
       .map((st) => {
         const a = st.attributes || {};
         const ok = a.feasible !== false;
-        return `<tr data-more="${esc(st.entity_id)}"><td><b>${esc(a.profile || st.entity_id)}</b><div class="muted small">${esc(a.reason || "")}</div></td>
+        const cur = num(a.current_value), target = num(a.target);
+        const reading = target !== null
+          ? `<div class="small ${cur !== null && cur >= target ? "lvl-cheap" : ""}">${cur !== null ? fmt(cur, 1) : "–"} / cel ${fmt(target, 1)}</div>`
+          : "";
+        return `<tr data-more="${esc(st.entity_id)}"><td><b>${esc(a.profile || st.entity_id)}</b>${reading}<div class="muted small">${esc(a.reason || "")}</div></td>
           <td>${a.next_start ? `${esc(this._dayTime(a.next_start))}–${esc(this._time(a.next_stop))}` : "–"}<div class="muted small">${(a.hours || []).length} h</div></td>
           <td class="r">${a.expected_cost != null ? `${fmt(a.expected_cost, 2)} zł` : "–"}</td>
           <td class="r"><span class="chip ${ok ? "chip-ok" : "chip-err"}">${ok ? "OK" : "niewykonalne"}</span></td></tr>`;

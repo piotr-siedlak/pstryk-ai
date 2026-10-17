@@ -57,7 +57,7 @@
       },
       "optimization": {
         "title": "Optymalizacja",
-        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, target, temperature_topic, temperature_key, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Liczba najtańszych godzin",
           "price_threshold": "Bezwzględny próg taniej ceny",
@@ -66,11 +66,16 @@
       },
       "buffer": {
         "title": "Bufor ciepła",
-        "description": "Doradcza optymalizacja bufora pompy ciepła. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
+        "description": "Doradcza optymalizacja bufora pompy ciepła. Temperatura bufora jest odczytywana z dokładnego tematu MQTT (zalecane, np. publikowanego przez Loxone) albo z czujnika Home Assistant. Wiadomość może być liczbą (42.5) lub JSON – wtedy podaj klucz, np. value albo sensors.bufor. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
         "data": {
           "buffer_enabled": "Włącz optymalizację bufora",
           "buffer_temperature_entity": "Czujnik temperatury bufora",
+          "buffer_temperature_topic": "Temperatura bufora – temat MQTT (dokładny, np. loxone/bufor/temperatura)",
+          "buffer_temperature_json_key": "Temperatura bufora – klucz JSON (tylko gdy wiadomość jest w JSON)",
           "outdoor_temperature_entity": "Czujnik temperatury zewnętrznej (opcjonalnie)",
+          "outdoor_temperature_topic": "Temperatura zewnętrzna – temat MQTT (opcjonalnie)",
+          "outdoor_temperature_json_key": "Temperatura zewnętrzna – klucz JSON (opcjonalnie)",
+          "mqtt_input_max_age_minutes": "Odczyty MQTT starsze niż ta wartość traktuj jako brak danych",
           "buffer_capacity_liters": "Pojemność bufora",
           "buffer_min_temperature": "Minimalna temperatura bufora",
           "buffer_max_temperature": "Maksymalna temperatura bufora",
@@ -113,6 +118,7 @@
       }
     },
     "error": {
+      "invalid_input_topic": "Nieprawidłowy temat MQTT – podaj dokładny temat bez # i +",
       "invalid_topic": "Nieprawidłowy temat (bez #, + i pustych poziomów)",
       "duplicate_topic": "Dwa tematy mają tę samą nazwę",
       "invalid_auth": "Nieprawidłowy klucz API",
@@ -187,7 +193,7 @@
       },
       "optimization": {
         "title": "Optymalizacja",
-        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, target, temperature_topic, temperature_key, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Liczba najtańszych godzin",
           "price_threshold": "Bezwzględny próg taniej ceny",
@@ -196,11 +202,16 @@
       },
       "buffer": {
         "title": "Bufor ciepła",
-        "description": "Doradcza optymalizacja bufora pompy ciepła. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
+        "description": "Doradcza optymalizacja bufora pompy ciepła. Temperatura bufora jest odczytywana z dokładnego tematu MQTT (zalecane, np. publikowanego przez Loxone) albo z czujnika Home Assistant. Wiadomość może być liczbą (42.5) lub JSON – wtedy podaj klucz, np. value albo sensors.bufor. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
         "data": {
           "buffer_enabled": "Włącz optymalizację bufora",
           "buffer_temperature_entity": "Czujnik temperatury bufora",
+          "buffer_temperature_topic": "Temperatura bufora – temat MQTT (dokładny, np. loxone/bufor/temperatura)",
+          "buffer_temperature_json_key": "Temperatura bufora – klucz JSON (tylko gdy wiadomość jest w JSON)",
           "outdoor_temperature_entity": "Czujnik temperatury zewnętrznej (opcjonalnie)",
+          "outdoor_temperature_topic": "Temperatura zewnętrzna – temat MQTT (opcjonalnie)",
+          "outdoor_temperature_json_key": "Temperatura zewnętrzna – klucz JSON (opcjonalnie)",
+          "mqtt_input_max_age_minutes": "Odczyty MQTT starsze niż ta wartość traktuj jako brak danych",
           "buffer_capacity_liters": "Pojemność bufora",
           "buffer_min_temperature": "Minimalna temperatura bufora",
           "buffer_max_temperature": "Maksymalna temperatura bufora",
@@ -306,6 +317,7 @@
       }
     },
     "error": {
+      "invalid_input_topic": "Nieprawidłowy temat MQTT – podaj dokładny temat bez # i +",
       "invalid_topic": "Nieprawidłowy temat (bez #, + i pustych poziomów)",
       "duplicate_topic": "Dwa tematy mają tę samą nazwę",
       "invalid_auth": "Nieprawidłowy klucz API",
@@ -466,6 +478,12 @@
       "buffer_next_window": {
         "name": "Następne okno grzania"
       },
+      "buffer_temperature": {
+        "name": "Temperatura bufora (odczyt)"
+      },
+      "outdoor_temperature": {
+        "name": "Temperatura zewnętrzna (odczyt)"
+      },
       "buffer_expected_cost": {
         "name": "Prognozowany koszt ogrzewania"
       },
@@ -590,6 +608,10 @@
     }
   },
   "issues": {
+    "mqtt_inputs_unavailable": {
+      "title": "Brak wejść MQTT",
+      "description": "Skonfigurowano tematy MQTT dla temperatur, ale integracja MQTT nie jest skonfigurowana."
+    },
     "pstryk_auth_failed": {
       "title": "Klucz API Pstryk odrzucony",
       "description": "Pstryk odrzucił klucz API. Ponownie uwierzytelnij integrację."

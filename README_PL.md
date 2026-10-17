@@ -88,6 +88,10 @@ Model energii wody (`0,001163 kWh/(l·K)`), straty postojowe, zapotrzebowanie bu
 temperatury zewnętrznej i zasilania (wyższa temperatura bufora = gorszy COP), minimalny czas pracy/postoju, optymalizacja w horyzoncie
 kroczącym (MPC). Porównanie kosztu z termostatem bez optymalizacji. Opis: [docs/OPTIMIZATION.md](docs/OPTIMIZATION.md).
 
+**Temperatury z MQTT:** temperaturę bufora, temperaturę zewnętrzną oraz wartości urządzeń (np. zasobnik CWU, SOC auta) można
+odczytywać z **dokładnych tematów MQTT** (np. `loxone/bufor/temperatura`) – wystarczy liczba albo JSON z kluczem. Odczyt starszy niż
+30 min = brak danych (sterowanie lokalne). Urządzenie, które osiągnęło `target`, nie dostaje godzin pracy.
+
 **Tryb doradczy jest domyślny.** Brak czujnika lub nieaktualne dane → `mode = fallback`, `should_heat = 0` = „steruj lokalnie”.
 
 ## Prywatność i warunki

@@ -40,6 +40,8 @@ ENTITIES = {
         "last_update": "Czas ostatniej aktualizacji",
         "buffer_target_temperature": "Zalecana temperatura bufora",
         "buffer_next_window": "Następne okno grzania",
+        "buffer_temperature": "Temperatura bufora (odczyt)",
+        "outdoor_temperature": "Temperatura zewnętrzna (odczyt)",
         "buffer_expected_cost": "Prognozowany koszt ogrzewania",
         "buffer_savings": "Szacowane oszczędności",
         "buffer_plan_reason": "Uzasadnienie planu bufora",
@@ -297,18 +299,21 @@ STEPS = {
     "optimization": (
         (
             "Optimization",
-            "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+            "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, target, temperature_topic, temperature_key, …) – format: docs/OPTIMIZATION.md.",
         ),
         (
             "Optymalizacja",
-            "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+            "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, target, temperature_topic, temperature_key, …) – format: docs/OPTIMIZATION.md.",
         ),
     ),
     "buffer": (
-        ("Thermal buffer", "Advisory optimization of a heat-pump buffer. Hardware safety limits always remain local."),
+        (
+            "Thermal buffer",
+            "Advisory optimization of a heat-pump buffer. The buffer temperature is read from the exact MQTT topic (preferred, e.g. published by Loxone) or from a Home Assistant sensor. The payload can be a number (42.5) or JSON – then give the key, e.g. value or sensors.bufor. Hardware safety limits always remain local.",
+        ),
         (
             "Bufor ciepła",
-            "Doradcza optymalizacja bufora pompy ciepła. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
+            "Doradcza optymalizacja bufora pompy ciepła. Temperatura bufora jest odczytywana z dokładnego tematu MQTT (zalecane, np. publikowanego przez Loxone) albo z czujnika Home Assistant. Wiadomość może być liczbą (42.5) lub JSON – wtedy podaj klucz, np. value albo sensors.bufor. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
         ),
     ),
     "mqtt": (
@@ -345,10 +350,48 @@ STEPS["panel"] = (
     ("Dashboard panel", "Show the Pstryk AI dashboard in the Home Assistant sidebar."),
     ("Panel", "Pokaż panel Pstryk AI na pasku bocznym Home Assistant."),
 )
+FIELDS["buffer_temperature_topic"] = (
+    "Buffer temperature – MQTT topic (exact, e.g. loxone/bufor/temperatura)",
+    "Temperatura bufora – temat MQTT (dokładny, np. loxone/bufor/temperatura)",
+)
+FIELDS["buffer_temperature_json_key"] = (
+    "Buffer temperature – JSON key (only if the payload is JSON)",
+    "Temperatura bufora – klucz JSON (tylko gdy wiadomość jest w JSON)",
+)
+FIELDS["outdoor_temperature_topic"] = (
+    "Outdoor temperature – MQTT topic (optional)",
+    "Temperatura zewnętrzna – temat MQTT (opcjonalnie)",
+)
+FIELDS["outdoor_temperature_json_key"] = (
+    "Outdoor temperature – JSON key (optional)",
+    "Temperatura zewnętrzna – klucz JSON (opcjonalnie)",
+)
+FIELDS["mqtt_input_max_age_minutes"] = (
+    "Treat MQTT readings older than this as missing",
+    "Odczyty MQTT starsze niż ta wartość traktuj jako brak danych",
+)
+STEP_FIELDS["buffer"] = [
+    "buffer_enabled",
+    "buffer_temperature_entity",
+    "buffer_temperature_topic",
+    "buffer_temperature_json_key",
+    "outdoor_temperature_entity",
+    "outdoor_temperature_topic",
+    "outdoor_temperature_json_key",
+    "mqtt_input_max_age_minutes",
+] + [
+    f
+    for f in STEP_FIELDS["buffer"]
+    if f not in ("buffer_enabled", "buffer_temperature_entity", "outdoor_temperature_entity")
+]
 FIELDS["show_panel"] = ("Show the Pstryk AI panel in the sidebar", "Pokaż panel Pstryk AI na pasku bocznym")
 STEP_FIELDS["panel"] = ["show_panel"]
 
 ERRORS = {
+    "invalid_input_topic": (
+        "Invalid MQTT topic – use an exact topic without # or +",
+        "Nieprawidłowy temat MQTT – podaj dokładny temat bez # i +",
+    ),
     "invalid_topic": ("Invalid topic (no #, + or empty levels)", "Nieprawidłowy temat (bez #, + i pustych poziomów)"),
     "duplicate_topic": ("Two topics resolve to the same name", "Dwa tematy mają tę samą nazwę"),
     "invalid_auth": ("Invalid API key", "Nieprawidłowy klucz API"),
@@ -404,6 +447,13 @@ SELECTORS = {
     "mqtt_qos": {"0": ("0", "0"), "1": ("1", "1"), "2": ("2", "2")},
 }
 ISSUES = {
+    "mqtt_inputs_unavailable": (
+        (
+            "MQTT inputs unavailable",
+            "MQTT topics for temperatures are configured but the MQTT integration is not set up.",
+        ),
+        ("Brak wejść MQTT", "Skonfigurowano tematy MQTT dla temperatur, ale integracja MQTT nie jest skonfigurowana."),
+    ),
     "pstryk_auth_failed": (
         ("Pstryk API key rejected", "Pstryk rejected the API key. Re-authenticate the integration."),
         ("Klucz API Pstryk odrzucony", "Pstryk odrzucił klucz API. Ponownie uwierzytelnij integrację."),

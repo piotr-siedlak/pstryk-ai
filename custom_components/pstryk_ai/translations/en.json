@@ -57,7 +57,7 @@
       },
       "optimization": {
         "title": "Optimization",
-        "description": "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+        "description": "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, target, temperature_topic, temperature_key, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Number of cheapest hours",
           "price_threshold": "Absolute cheap price threshold",
@@ -66,11 +66,16 @@
       },
       "buffer": {
         "title": "Thermal buffer",
-        "description": "Advisory optimization of a heat-pump buffer. Hardware safety limits always remain local.",
+        "description": "Advisory optimization of a heat-pump buffer. The buffer temperature is read from the exact MQTT topic (preferred, e.g. published by Loxone) or from a Home Assistant sensor. The payload can be a number (42.5) or JSON – then give the key, e.g. value or sensors.bufor. Hardware safety limits always remain local.",
         "data": {
           "buffer_enabled": "Enable buffer optimization",
           "buffer_temperature_entity": "Buffer temperature sensor",
+          "buffer_temperature_topic": "Buffer temperature – MQTT topic (exact, e.g. loxone/bufor/temperatura)",
+          "buffer_temperature_json_key": "Buffer temperature – JSON key (only if the payload is JSON)",
           "outdoor_temperature_entity": "Outdoor temperature sensor (optional)",
+          "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
+          "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
+          "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
           "buffer_capacity_liters": "Buffer volume",
           "buffer_min_temperature": "Minimum buffer temperature",
           "buffer_max_temperature": "Maximum buffer temperature",
@@ -113,6 +118,7 @@
       }
     },
     "error": {
+      "invalid_input_topic": "Invalid MQTT topic – use an exact topic without # or +",
       "invalid_topic": "Invalid topic (no #, + or empty levels)",
       "duplicate_topic": "Two topics resolve to the same name",
       "invalid_auth": "Invalid API key",
@@ -187,7 +193,7 @@
       },
       "optimization": {
         "title": "Optimization",
-        "description": "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+        "description": "Cheapest-hour preferences and device profiles as a JSON list (name, power_kw, duration_h, consecutive, target, temperature_topic, temperature_key, …) – format: docs/OPTIMIZATION.md.",
         "data": {
           "cheap_hours_count": "Number of cheapest hours",
           "price_threshold": "Absolute cheap price threshold",
@@ -196,11 +202,16 @@
       },
       "buffer": {
         "title": "Thermal buffer",
-        "description": "Advisory optimization of a heat-pump buffer. Hardware safety limits always remain local.",
+        "description": "Advisory optimization of a heat-pump buffer. The buffer temperature is read from the exact MQTT topic (preferred, e.g. published by Loxone) or from a Home Assistant sensor. The payload can be a number (42.5) or JSON – then give the key, e.g. value or sensors.bufor. Hardware safety limits always remain local.",
         "data": {
           "buffer_enabled": "Enable buffer optimization",
           "buffer_temperature_entity": "Buffer temperature sensor",
+          "buffer_temperature_topic": "Buffer temperature – MQTT topic (exact, e.g. loxone/bufor/temperatura)",
+          "buffer_temperature_json_key": "Buffer temperature – JSON key (only if the payload is JSON)",
           "outdoor_temperature_entity": "Outdoor temperature sensor (optional)",
+          "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
+          "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
+          "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
           "buffer_capacity_liters": "Buffer volume",
           "buffer_min_temperature": "Minimum buffer temperature",
           "buffer_max_temperature": "Maximum buffer temperature",
@@ -306,6 +317,7 @@
       }
     },
     "error": {
+      "invalid_input_topic": "Invalid MQTT topic – use an exact topic without # or +",
       "invalid_topic": "Invalid topic (no #, + or empty levels)",
       "duplicate_topic": "Two topics resolve to the same name",
       "invalid_auth": "Invalid API key",
@@ -466,6 +478,12 @@
       "buffer_next_window": {
         "name": "Następne okno grzania"
       },
+      "buffer_temperature": {
+        "name": "Temperatura bufora (odczyt)"
+      },
+      "outdoor_temperature": {
+        "name": "Temperatura zewnętrzna (odczyt)"
+      },
       "buffer_expected_cost": {
         "name": "Prognozowany koszt ogrzewania"
       },
@@ -590,6 +608,10 @@
     }
   },
   "issues": {
+    "mqtt_inputs_unavailable": {
+      "title": "MQTT inputs unavailable",
+      "description": "MQTT topics for temperatures are configured but the MQTT integration is not set up."
+    },
     "pstryk_auth_failed": {
       "title": "Pstryk API key rejected",
       "description": "Pstryk rejected the API key. Re-authenticate the integration."

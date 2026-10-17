@@ -52,6 +52,26 @@ Wildcards (`#`, `+`) and empty levels are rejected, and two topics may not resol
 removes retained messages from topics it no longer publishes, so subscribers do not keep reading stale data. MQTT discovery follows the
 renamed topics; the JSON payload schema does not change.
 
+## Inputs: temperatures read from MQTT (subscribed)
+The integration can **read** temperatures from exact topics you choose – typically published by Loxone:
+
+| Option (Configure → Thermal buffer / device profile) | Example topic | Used for |
+|---|---|---|
+| `buffer_temperature_topic` | `loxone/bufor/temperatura` | current buffer temperature (start of the MPC plan) |
+| `outdoor_temperature_topic` | `loxone/zewn/temperatura` | outdoor temperature for the current hour (COP, heat demand) |
+| device profile `temperature_topic` | `loxone/cwu/temperatura` | current value of a device (DHW tank °C, EV SOC %) compared with its `target` |
+
+* Topics must be exact (no `#` / `+`). Payload: a number (`42.5`, `42,5`) or JSON – set the JSON key (dotted paths allowed:
+  `sensors.bufor`); without a key `value`, `temperature`, `temp`, `state` are tried.
+* Implausible values (buffer outside −60…150 °C, outdoor outside −60…60 °C) are ignored.
+* A reading older than *mqtt_input_max_age_minutes* (default 30) counts as missing. For the buffer this means `mode = fallback`
+  (local control) – a stale temperature never drives a heating recommendation.
+* An MQTT topic takes precedence over the Home Assistant sensor; the sensor is the fallback when MQTT is silent.
+* A buffer reading that differs by more than 1 K from the plan, or a device crossing its target, triggers an immediate re-plan
+  (at most once per 5 minutes; later triggers are deferred, not dropped).
+* Readings are visible as *Temperatura bufora (odczyt)* and *Temperatura zewnętrzna (odczyt)* (attribute `source`: `mqtt`, `entity`,
+  `mqtt_stale`, `none`) and in diagnostics.
+
 ## Example payloads
 
 `pstryk_ai/home/prices/today`

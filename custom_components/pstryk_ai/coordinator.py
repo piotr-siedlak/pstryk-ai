@@ -13,7 +13,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.event import async_call_later, async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -37,6 +37,7 @@ from .models.energy_data import MeterFrame, PstrykSnapshot
 from .models.forecasts import ForecastRun
 from .models.price_slot import PriceSlot, PriceSource, floor_hour, iso
 from .mqtt.discovery import discovery_messages, removal_messages
+from .mqtt.inputs import InputSpec, MqttInputs
 from .mqtt.publisher import MqttPublisher
 from .mqtt.schemas import TOPICS
 from .optimization.scheduler import schedule_device
@@ -155,6 +156,9 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         self._prices_just_confirmed = False
         self._discovery_sent = False
         self._stale_checked = False
+        self._last_input_recalc: datetime | None = None
+        self._pending_input_recalc: CALLBACK_TYPE | None = None
+        self.inputs = MqttInputs(hass, [])
 
     # ================================================================ setup
     async def async_initialize(self) -> None:
@@ -215,6 +219,10 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         self._unsubs.append(async_track_time_change(self.hass, _fire, **kwargs))
 
     async def async_shutdown(self) -> None:
+        self.inputs.stop()
+        if self._pending_input_recalc is not None:
+            self._pending_input_recalc()
+            self._pending_input_recalc = None
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -558,7 +566,12 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             schedules = (
                 [
                     schedule_device(
-                        p, timeline.buy, now, risk_aversion=s.risk_aversion, max_speculative_hours=s.max_speculative_h
+                        p,
+                        timeline.buy,
+                        now,
+                        risk_aversion=s.risk_aversion,
+                        max_speculative_hours=s.max_speculative_h,
+                        current_value=self.inputs.value(f"device:{p.name}") if p.temperature_topic else None,
                     )
                     for p in sorted(s.profiles, key=lambda p: p.priority)
                 ]
@@ -611,9 +624,9 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         cfg.min_t = float(self.controls["buffer_min_t"])
         cfg.max_t = max(float(self.controls["buffer_max_t"]), cfg.min_t + 1)
         cfg.comfort_penalty_pln_per_kh = 20.0 if self.controls["buffer_strategy"] == "comfort" else 5.0
-        current = self._entity_float(s.buffer_temp_entity)
+        current, _ = self.buffer_temperature()
         outdoor = {w.start: w.get("temperature_2m") for w in self.local_weather if w.get("temperature_2m") is not None}
-        if (t_out := self._entity_float(s.outdoor_temp_entity)) is not None:
+        if (t_out := self.outdoor_temperature()[0]) is not None:
             outdoor[floor_hour(now)] = t_out
         cur_slot = timeline.at(now)
         stale = (
@@ -637,8 +650,97 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             stale=stale,
         )
         if current is None:
-            plan.optimization_reason = "Brak odczytu temperatury bufora – sterowanie lokalne"
+            _, source = self.buffer_temperature()
+            plan.optimization_reason = (
+                f"Brak świeżego odczytu MQTT temperatury bufora (>{s.input_max_age_min} min) – sterowanie lokalne"
+                if source == "mqtt_stale"
+                else "Brak odczytu temperatury bufora – sterowanie lokalne"
+            )
         return plan
+
+    def buffer_temperature(self) -> tuple[float | None, str]:
+        """Current buffer temperature and its source: MQTT topic first, then HA entity."""
+        return self._reading("buffer", self.settings.buffer_temp_topic, self.settings.buffer_temp_entity)
+
+    def outdoor_temperature(self) -> tuple[float | None, str]:
+        return self._reading("outdoor", self.settings.outdoor_temp_topic, self.settings.outdoor_temp_entity)
+
+    def _reading(self, name: str, topic: str | None, entity_id: str | None) -> tuple[float | None, str]:
+        if topic and (value := self.inputs.value(name)) is not None:
+            return value, "mqtt"
+        if (value := self._entity_float(entity_id)) is not None:
+            return value, "entity"
+        return None, ("mqtt_stale" if topic else "none")
+
+    async def async_start_inputs(self) -> None:
+        s = self.settings
+        specs = [
+            InputSpec("buffer", s.buffer_temp_topic or "", s.buffer_temp_key),
+            InputSpec("outdoor", s.outdoor_temp_topic or "", s.outdoor_temp_key, min_value=-60, max_value=60),
+        ]
+        specs += [
+            InputSpec(f"device:{p.name}", p.temperature_topic or "", p.temperature_key)
+            for p in s.profiles
+            if p.temperature_topic
+        ]
+        self.inputs = MqttInputs(
+            self.hass, specs, max_age=timedelta(minutes=s.input_max_age_min), on_update=self._on_input
+        )
+        if not await self.inputs.async_start():
+            self._raise_issue("mqtt_inputs", "mqtt_inputs_unavailable")
+
+    @callback
+    def _on_input(self, name: str, value: float, previous: float | None) -> None:
+        """Replan (MPC) when a measurement deviates from what the plan expected.
+
+        Recalculations are limited to one per 5 minutes; a trigger inside that
+        window is deferred (never dropped).
+        """
+        now = self._now()
+        if not self._input_triggers(name, value, previous, now):
+            self.async_update_listeners()
+            return
+        wait = timedelta(0)
+        if self._last_input_recalc is not None:
+            wait = self._last_input_recalc + timedelta(minutes=5) - now
+        if wait <= timedelta(0):
+            self._run_input_recalc(name)
+            return
+        if self._pending_input_recalc is None:
+
+            @callback
+            def _deferred(_now: datetime) -> None:
+                self._pending_input_recalc = None
+                self._run_input_recalc(name)
+
+            self._pending_input_recalc = async_call_later(self.hass, wait.total_seconds(), _deferred)
+        self.async_update_listeners()
+
+    def _input_triggers(self, name: str, value: float, previous: float | None, now: datetime) -> bool:
+        if previous is None:
+            return True
+        data = self.data
+        if name == "buffer":
+            if data is not None and data.buffer is not None and data.buffer.steps:
+                step = next((st for st in data.buffer.steps if st.start <= now < st.start + timedelta(hours=1)), None)
+                if step is not None:
+                    frac = (now - step.start).total_seconds() / 3600
+                    expected = step.temperature_start + (step.temperature_end - step.temperature_start) * frac
+                    return abs(value - expected) > 1.0
+            return abs(value - previous) > 1.0
+        if name.startswith("device:"):
+            profile = next((p for p in self.settings.profiles if f"device:{p.name}" == name), None)
+            if profile is not None and profile.target is not None:
+                return (previous >= profile.target) != (value >= profile.target)
+            return False
+        return abs(value - previous) > 3.0
+
+    @callback
+    def _run_input_recalc(self, name: str) -> None:
+        self._last_input_recalc = self._now()
+        self.config_entry.async_create_background_task(
+            self.hass, self.async_recalculate(reason=f"mqtt_input_{name}", forecast=False), f"{DOMAIN}_input_recalc"
+        )
 
     def _entity_float(self, entity_id: str | None) -> float | None:
         if not entity_id:
@@ -794,6 +896,7 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             "inputs_missing": self.forecast_run.inputs_missing if self.forecast_run else [],
             "history_hours": len(self.market_reference()[1]),
             "import": self.import_status,
+            "mqtt_inputs": self.inputs.status(),
         }
 
     def set_control(self, key: str, value: Any) -> None:

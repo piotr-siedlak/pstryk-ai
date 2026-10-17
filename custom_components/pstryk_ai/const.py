@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "pstryk_ai"
 NAME: Final = "Pstryk AI"
 MANUFACTURER: Final = "Pstryk AI (community)"
-VERSION: Final = "0.2.0"
+VERSION: Final = "0.3.0"
 
 LOCAL_TZ: Final = "Europe/Warsaw"
 
@@ -55,6 +55,11 @@ CONF_DEVICE_PROFILES: Final = "device_profiles"
 CONF_BUFFER_ENABLED: Final = "buffer_enabled"
 CONF_BUFFER_TEMP_ENTITY: Final = "buffer_temperature_entity"
 CONF_OUTDOOR_TEMP_ENTITY: Final = "outdoor_temperature_entity"
+CONF_BUFFER_TEMP_TOPIC: Final = "buffer_temperature_topic"
+CONF_BUFFER_TEMP_KEY: Final = "buffer_temperature_json_key"
+CONF_OUTDOOR_TEMP_TOPIC: Final = "outdoor_temperature_topic"
+CONF_OUTDOOR_TEMP_KEY: Final = "outdoor_temperature_json_key"
+CONF_INPUT_MAX_AGE_MIN: Final = "mqtt_input_max_age_minutes"
 CONF_BUFFER_VOLUME_L: Final = "buffer_capacity_liters"
 CONF_BUFFER_MIN_T: Final = "buffer_min_temperature"
 CONF_BUFFER_MAX_T: Final = "buffer_max_temperature"
@@ -116,6 +121,7 @@ DEFAULT_INDOOR_BASE_T: Final = 18.0
 DEFAULT_MIN_RUNTIME_H: Final = 1
 DEFAULT_MIN_OFFTIME_H: Final = 1
 DEFAULT_MAX_STARTS: Final = 6
+DEFAULT_INPUT_MAX_AGE_MIN: Final = 30
 
 MARKET_PROVIDER_ENTSOE: Final = "entsoe"
 MARKET_PROVIDER_TGE: Final = "tge"
