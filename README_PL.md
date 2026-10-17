@@ -44,6 +44,20 @@ licznik i saldo, jakość prognozy oraz status źródeł danych. Działa w trybi
 
 ![Panel Pstryk AI](docs/images/panel.jpg)
 
+## Nowości v0.4 (wszystko opcjonalne, włączane w opcjach)
+* **Bufor z czujnikiem góra/dół** – dotychczasowy czujnik bufora jest automatycznie przeniesiony na „górę”; dół jest opcjonalny.
+  Plan liczy energię i naładowanie (%) ze średniej, a komfort z górnej warstwy.
+* **Grzałka** bufora i/lub CWU – elektryczna lub gazowa, stopnie mocy (np. 2,4,6 kW), własny temat sterowania (1/0 lub kW) i temat stanu.
+  Optymalizator wybiera co godzinę: pompa, grzałka, oba albo nic – według kosztu dostarczonego ciepła.
+* **CWU** – drugi zasobnik: czujniki góra/dół, godziny gotowości (np. 06:00, 19:00 ≥ 45 °C), dobowe zużycie, wspólna pompa z zaworem
+  i priorytetem CWU, temat sterowania zaworem, cykl **antylegionella** (np. 60 °C co 7 dni w najtańszej porze).
+* **Limit mocy przyłącza**, **taryfa dystrybucyjna G11/G12/G12w/G13** (optymalizacja wg ceny z dystrybucją), **autokonsumpcja PV**,
+  **uczenie** (zapotrzebowanie, straty, profil CWU, COP), **pomiar zużycia pompy**, **powiadomienia**, **heartbeat MQTT**.
+* **Wydatki Pstryk**: dziś, wczoraj, ten miesiąc, prognoza miesiąca, poprzedni miesiąc, ostatnie 12 miesięcy, składniki kosztu;
+  opcjonalny import do statystyk HA (panel Energia). Szczegóły: [docs/HEAT_STORAGES.md](docs/HEAT_STORAGES.md).
+
+![Wydatki](docs/images/panel-spends.jpg)
+
 ## Pierwszeństwo źródeł cen
 `ACTUAL_PSTRYK` (potwierdzona) > `PUBLISHED_TGE` (opublikowana cena giełdowa przeliczona taryfą – szacunek) > `MODEL_FORECAST` >
 `FALLBACK_FORECAST` (model bazowy) > `UNAVAILABLE`. Każdy sensor i rekord MQTT ma pole `source` i `quality`.

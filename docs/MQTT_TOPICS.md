@@ -31,11 +31,27 @@ Publication uses the broker configured in Home Assistant's MQTT integration. Pre
 | `optimizer/buffer/next_start`, `next_stop` | scalar ISO | yes | first heating block |
 | `optimizer/buffer/expected_cost` | scalar PLN | yes | next 24 h |
 | `optimizer/buffer/schedule` | JSON | yes | full plan incl. per-hour steps |
+| `optimizer/buffer/heater/should_run`, `optimizer/buffer/heater/power` | scalar | no / yes | buffer heater recommendation (kW) |
+| `optimizer/buffer/soc` | scalar % | yes | buffer charge |
+| `optimizer/dhw/should_heat` | scalar 1/0 | **no**, expiry | hot-water heat-pump recommendation |
+| `optimizer/dhw/mode`, `target_temperature`, `next_start`, `schedule`, `soc` | scalar/JSON | yes | hot-water plan |
+| `optimizer/dhw/heater/should_run`, `optimizer/dhw/heater/power` | scalar | no / yes | hot-water heater |
+| `optimizer/valve` | `buffer`/`dhw`/`idle` | no | heat-pump switching valve (shared heat pump) |
+| `spends/summary`, `spends/daily`, `spends/monthly` | JSON | yes | Pstryk spending (today, yesterday, month, projection, 12 months, daily and monthly series) |
+| `heartbeat` | ISO time | no | every 60 s when enabled (watchdog) |
 | `status` | JSON | yes | providers, flags |
 | `availability` | `online`/`offline` | yes | `offline` on unload |
 | `forecast/status`, `forecast/confidence`, `forecast/last_update` | JSON/scalar | yes | model info |
 | `api/pstryk/status`, `api/tge/status`, `api/entsoe/status`, `api/pse/status`, `api/weather/status` | scalar | yes | `ok`, `error`, `rate_limited`, … |
 | `evcc/prices` (optional) | JSON list | yes | `[{"start","end","value"}]` (EVCC custom forecast tariff) |
+
+## Commands to your devices (control mode only)
+Exact topics you set in the heater / CWU options. Published **only when advisory mode is off**, never retained:
+
+| Option | Payload |
+|---|---|
+| `buffer_heater_command_topic`, `dhw_heater_command_topic` | `1`/`0` or power in kW (`2.0`) depending on the command format; `0` in fallback |
+| `dhw_valve_command_topic` | `buffer`, `dhw` or `idle` (`idle` in fallback) |
 
 ## Renaming or disabling topics
 *Settings → Devices & services → Pstryk AI → Configure → MQTT topics* lists all 46 topics. Each field is the topic name **relative to

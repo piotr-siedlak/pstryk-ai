@@ -2,6 +2,29 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] – 2026-10-17
+All new features are optional and switchable (options; most also with runtime switches).
+### Added
+- Buffer **top/bottom** temperature sensors (MQTT topic or HA entity); automatic migration of the former buffer sensor to *top*
+  (config entry 1.1 → 1.2); stratification-aware comfort; charge % and stored energy.
+- **Auxiliary heaters** for buffer and CWU: electric or gas, power steps, efficiency, gas price, max temperature, command topic
+  (`1/0` or kW, control mode only), state topic for metering; combined heat-pump + heater optimisation by cost of delivered heat.
+- **Hot-water tank (CWU)**: second storage with top/bottom sensors, ready times, daily use profile, shared heat pump with switching
+  valve and priority, valve command topic, **legionella** cycle.
+- **Connection power limit** across heat pump, heaters and device schedules.
+- **Distribution tariff zones** (G11/G12/G12w/G13) and optimisation on the all-in price; zone sensor.
+- **PV self-consumption** (production forecast from radiation, surplus valued at the sell price).
+- **Learning** of building demand, storage losses, hot-water profile and COP; measured heat-pump/heater consumption and cost.
+- **Pstryk spending**: yesterday, previous month, last 12 months (monthly history), average daily cost, month projection, breakdown;
+  MQTT `spends/*`; optional import into HA long-term statistics.
+- **Notifications** (tomorrow's prices, negative prices, local-control fallback, stale data) and MQTT **heartbeat**.
+- Panel: storage cards with layer bar, heater/valve state, legionella, separate timeline lanes (heat pump → buffer/CWU, heaters, PV),
+  spending section with daily/monthly charts.
+### Changed
+- Storage optimiser generalised (heat-pump availability per hour, heater stages, power cap, ready/legionella constraints, PV pricing);
+  heavy planning runs in an executor thread.
+- Daily totals sensors use `total_increasing` (Energy dashboard compatible).
+
 ## [0.3.0] – 2026-10-17
 ### Added
 - **Temperatures from exact MQTT topics**: buffer temperature, outdoor temperature (options *Thermal buffer*) and per-device values

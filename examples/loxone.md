@@ -51,3 +51,20 @@ HeatRequest   = HeatRequest AND NOT OverTempAlarm AND NOT FaultHP   // hard inte
 
 ## 4. Price-based loads
 `VI_PstrykCheap` can enable non-critical loads (e.g. DHW boost) with a minimum on-time block in Loxone.
+
+
+## 5. v0.4: heaters, hot water and valve (control mode)
+| Topic (set in options) | Loxone virtual input | Use |
+|---|---|---|
+| `loxone/bufor/grzalka/set` | `VI_BuforGrzalka` (digital or analog kW) | enable the buffer heater stage – **AND** with the local thermostat/STB |
+| `loxone/cwu/grzalka/set` | `VI_CWUGrzalka` | CWU heater (also legionella) |
+| `loxone/pc/zawor/set` | `VTI_Zawor` (`buffer`/`dhw`/`idle`) | 3-way valve request; `idle` = keep the local logic |
+| `pstryk_ai/home/heartbeat` | `VTI_PstrykHeartbeat` | watchdog: if no message for 3 min, ignore all Pstryk AI commands |
+
+Publish to Pstryk AI: buffer top/bottom, CWU top/bottom, heat-pump power (W or kW) – e.g. `loxone/bufor/gora`, `loxone/bufor/dol`,
+`loxone/cwu/gora`, `loxone/cwu/dol`, `loxone/pc/moc`.
+
+```
+HeaterAllowed = Valid AND VI_BuforGrzalka AND BufferTop < BufferMaxLocal AND NOT STB_Alarm
+ValveRequest  = Valid ? VTI_Zawor : "local"
+```
