@@ -867,13 +867,13 @@ SELECTORS.update(
             "valve": ("Shared heat pump with switching valve", "Wspólna pompa ciepła z zaworem przełączającym"),
             "none": ("Heat pump does not heat CWU (heater only)", "Pompa nie grzeje CWU (tylko grzałka)"),
         },
-        "power_unit": {"kW": ("kW", "kW"), "W": ("W", "W")},
+        "power_unit": {"kw": ("kW", "kW"), "w": ("W", "W")},
         "distribution_tariff": {
             "none": ("Flat rate (from the Pstryk step)", "Stała stawka (z kroku Pstryk)"),
-            "G11": ("G11", "G11"),
-            "G12": ("G12", "G12"),
-            "G12w": ("G12w", "G12w"),
-            "G13": ("G13", "G13"),
+            "g11": ("G11", "G11"),
+            "g12": ("G12", "G12"),
+            "g12w": ("G12w", "G12w"),
+            "g13": ("G13", "G13"),
         },
     }
 )

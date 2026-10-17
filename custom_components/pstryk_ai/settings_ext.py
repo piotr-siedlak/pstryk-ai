@@ -207,7 +207,10 @@ def load_heater(c: dict[str, Any], prefix: str) -> HeaterSettings:
 
 
 def load_ext(c: dict[str, Any]) -> ExtSettings:
-    kind = _s(c, CONF_DIST_TARIFF) or DIST_NONE
+    # option values are lowercase (hassfest); accept both spellings
+    kind = {"g11": "G11", "g12": "G12", "g12w": "G12w", "g13": "G13", "none": DIST_NONE}.get(
+        (_s(c, CONF_DIST_TARIFF) or DIST_NONE).lower(), DIST_NONE
+    )
     distribution = None
     if kind != DIST_NONE:
         distribution = DistributionTariff(
@@ -252,7 +255,7 @@ def load_ext(c: dict[str, Any]) -> ExtSettings:
         power_limit_kw=_f(c, CONF_POWER_LIMIT_KW, 11.0),
         base_load_kw=_f(c, CONF_BASE_LOAD_KW, 0.4),
         hp_power=SensorSource(_s(c, CONF_HP_POWER_TOPIC), _s(c, CONF_HP_POWER_KEY), _s(c, CONF_HP_POWER_ENTITY)),
-        power_unit=_s(c, CONF_POWER_UNIT) or "kW",
+        power_unit="W" if (_s(c, CONF_POWER_UNIT) or "kW").lower() == "w" else "kW",
         distribution=distribution,
         optimize_all_in=_b(c, CONF_OPTIMIZE_ALL_IN, False),
         pv_enabled=_b(c, CONF_PV_ENABLED, False),

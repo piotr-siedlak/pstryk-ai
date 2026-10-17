@@ -252,7 +252,7 @@ async def test_new_option_steps(hass: HomeAssistant, aioclient_mock: AiohttpClie
         (
             "tariff",
             {
-                "distribution_tariff": "G12",
+                "distribution_tariff": "g12",
                 "distribution_rate_peak": 0.3,
                 "distribution_rate_offpeak": 0.1,
                 "distribution_rate_peak2": 0,

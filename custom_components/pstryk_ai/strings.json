@@ -553,17 +553,17 @@
     },
     "power_unit": {
       "options": {
-        "kW": "kW",
-        "W": "W"
+        "kw": "kW",
+        "w": "W"
       }
     },
     "distribution_tariff": {
       "options": {
         "none": "Flat rate (from the Pstryk step)",
-        "G11": "G11",
-        "G12": "G12",
-        "G12w": "G12w",
-        "G13": "G13"
+        "g11": "G11",
+        "g12": "G12",
+        "g12w": "G12w",
+        "g13": "G13"
       }
     }
   },

@@ -470,7 +470,9 @@ def schema_power(v: Mapping[str, Any]) -> vol.Schema:
             _temp_entity(v, CONF_HP_POWER_ENTITY): power_sel,
             _text(v, CONF_HP_POWER_TOPIC): selector.TextSelector(),
             _text(v, CONF_HP_POWER_KEY): selector.TextSelector(),
-            vol.Required(CONF_POWER_UNIT, default=_d(v, CONF_POWER_UNIT, "kW")): _sel(POWER_UNITS, "power_unit"),
+            vol.Required(CONF_POWER_UNIT, default=str(_d(v, CONF_POWER_UNIT, "kw")).lower()): _sel(
+                [u.lower() for u in POWER_UNITS], "power_unit"
+            ),
         }
     )
 
@@ -478,8 +480,8 @@ def schema_power(v: Mapping[str, Any]) -> vol.Schema:
 def schema_tariff(v: Mapping[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(CONF_DIST_TARIFF, default=_d(v, CONF_DIST_TARIFF, DIST_NONE)): _sel(
-                DIST_TARIFFS, "distribution_tariff"
+            vol.Required(CONF_DIST_TARIFF, default=str(_d(v, CONF_DIST_TARIFF, DIST_NONE)).lower()): _sel(
+                [t.lower() for t in DIST_TARIFFS], "distribution_tariff"
             ),
             vol.Required(CONF_DIST_RATE_PEAK, default=_d(v, CONF_DIST_RATE_PEAK, 0.0)): _num(0, 3, "any", "PLN/kWh"),
             vol.Required(CONF_DIST_RATE_OFFPEAK, default=_d(v, CONF_DIST_RATE_OFFPEAK, 0.0)): _num(
