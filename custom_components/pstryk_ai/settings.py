@@ -256,10 +256,11 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
             min_runtime_h=int(g(CONF_MIN_RUNTIME_H, DEFAULT_MIN_RUNTIME_H)),
             min_offtime_h=int(g(CONF_MIN_OFFTIME_H, DEFAULT_MIN_OFFTIME_H)),
             max_starts_per_day=int(g(CONF_MAX_STARTS, DEFAULT_MAX_STARTS)),
-            comfort_penalty_pln_per_kh=20.0 if strategy != BUFFER_STRATEGY_COST else 5.0,
+            comfort_penalty_pln_per_kh=100.0 if strategy != BUFFER_STRATEGY_COST else 30.0,
             risk_aversion=float(g(CONF_RISK_AVERSION, DEFAULT_RISK_AVERSION)),
             name="buffer",
             hp_max_t=ext.hp_max_t,
+            hp_levels=ext.hp_levels,
             heater=ext.buffer_heater.config if ext.buffer_heater.enabled else None,
         ),
         cop=CopModel(

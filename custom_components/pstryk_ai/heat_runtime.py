@@ -122,7 +122,7 @@ class HeatRuntimeMixin:
                 s.buffer,
                 min_t=float(self.controls["buffer_min_t"]),
                 max_t=max(float(self.controls["buffer_max_t"]), float(self.controls["buffer_min_t"]) + 1),
-                comfort_penalty_pln_per_kh=20.0 if self.controls["buffer_strategy"] == "comfort" else 5.0,
+                comfort_penalty_pln_per_kh=100.0 if self.controls["buffer_strategy"] == "comfort" else 30.0,
                 heater=x.buffer_heater.config
                 if (x.buffer_heater.enabled and self.controls.get("buffer_heater_enabled"))
                 else None,
@@ -167,7 +167,8 @@ class HeatRuntimeMixin:
                 building_kw_per_k=0.0,
                 min_runtime_h=s.buffer.min_runtime_h,
                 min_offtime_h=s.buffer.min_offtime_h,
-                comfort_penalty_pln_per_kh=10.0,
+                comfort_penalty_pln_per_kh=30.0,
+                hp_levels=x.hp_levels,
                 risk_aversion=s.risk_aversion,
                 hp_enabled=d.hp_mode == DHW_HP_VALVE,
                 hp_max_t=x.hp_max_t,
@@ -410,6 +411,7 @@ class HeatRuntimeMixin:
                     Message(f"{base}/schedule", _plan_json(p, now)),
                 ]
             msgs += [
+                Message(f"{base}/hp_modulation", scalar(p.hp_modulation_pct), retain=False, expiry_s=expiry),
                 Message(f"{base}/heater/should_run", scalar(p.heater_should_run), retain=False, expiry_s=expiry),
                 Message(f"{base}/heater/power", scalar(round(p.heater_power_kw, 2))),
                 Message(f"{base}/soc", scalar(None if p.soc_pct is None else round(p.soc_pct, 1))),

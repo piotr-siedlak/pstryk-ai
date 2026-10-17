@@ -81,6 +81,8 @@ TOPICS: tuple[str, ...] = (
     "spends/daily",
     "spends/monthly",
     "heartbeat",
+    "optimizer/buffer/hp_modulation",
+    "optimizer/dhw/hp_modulation",
 )
 
 _INVALID = set("#+\0")

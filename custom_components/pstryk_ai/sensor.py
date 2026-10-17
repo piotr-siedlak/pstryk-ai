@@ -164,10 +164,11 @@ SENSORS: tuple[PstrykSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=3,
         value_fn=lambda d, c: (
-            None if _value(d.current) is None else round(c.settings.tariff.all_in(d.current.value), 4)
+            None if _value(d.current) is None else round(c.settings.tariff.all_in(d.current.value, d.now), 4)
         ),  # type: ignore[union-attr,arg-type]
         attrs_fn=lambda d, c: {
-            "distribution_gross": round(c.settings.tariff.distribution_gross(), 4),
+            "distribution_gross": round(c.settings.tariff.distribution_gross(d.now), 4),
+            "distribution_zone": c.settings.tariff.distribution_zone(d.now),
             "pstryk_includes_distribution": c.settings.tariff.pstryk_includes_distribution,
             "note": "Szacunek: cena energii + zmienna opłata dystrybucyjna",
         },
