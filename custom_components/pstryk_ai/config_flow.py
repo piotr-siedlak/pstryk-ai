@@ -61,12 +61,14 @@ from .const import (
     CONF_MQTT_PREFIX,
     CONF_MQTT_QOS,
     CONF_MQTT_RETAIN,
+    CONF_MQTT_TOPICS,
     CONF_OUTDOOR_TEMP_ENTITY,
     CONF_PRICE_INCLUDES_DISTRIBUTION,
     CONF_PRICE_THRESHOLD,
     CONF_PROSUMER,
     CONF_PSE_ENABLED,
     CONF_RISK_AVERSION,
+    CONF_SHOW_PANEL,
     CONF_TGE_ENABLED,
     CONF_THERMAL_LOSS_KW_K,
     CONF_USE_HA_LOCATION,
@@ -110,6 +112,7 @@ from .const import (
     NAME,
     WEATHER_MODELS,
 )
+from .mqtt.schemas import TOPICS, resolve_topic, topic_field, validate_topic
 from .settings import parse_profiles
 
 _LOGGER = logging.getLogger(__name__)
@@ -360,6 +363,41 @@ def _normalise(step: str, data: dict[str, Any]) -> dict[str, Any]:
 STEPS = ["location", "market", "weather", "forecast", "optimization", "buffer", "mqtt"]
 
 
+def schema_topics(overrides: Mapping[str, str]) -> vol.Schema:
+    """One text field per MQTT topic; an emptied field disables that topic."""
+    fields: dict[Any, Any] = {}
+    for canonical in TOPICS:
+        current = overrides.get(canonical, canonical)
+        fields[vol.Optional(topic_field(canonical), description={"suggested_value": current})] = selector.TextSelector()
+    return vol.Schema(fields)
+
+
+def parse_topics(prefix: str, user_input: Mapping[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
+    """Return (overrides, errors). Only values that differ from the default are stored."""
+    overrides: dict[str, str] = {}
+    errors: dict[str, str] = {}
+    seen: dict[str, str] = {}
+    for canonical in TOPICS:
+        field = topic_field(canonical)
+        value = str(user_input.get(field) or "").strip()
+        if not validate_topic(value):
+            errors[field] = "invalid_topic"
+            continue
+        if value != canonical:
+            overrides[canonical] = value
+        full = resolve_topic(prefix, canonical, overrides)
+        if full is None:
+            continue
+        if full in seen:
+            errors[field] = "duplicate_topic"
+        seen[full] = canonical
+    return overrides, errors
+
+
+def schema_panel(v: Mapping[str, Any]) -> vol.Schema:
+    return vol.Schema({vol.Required(CONF_SHOW_PANEL, default=_d(v, CONF_SHOW_PANEL, True)): bool})
+
+
 class PstrykAIConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -530,7 +568,7 @@ class PstrykAIOptionsFlow(OptionsFlow):
         return {**self.config_entry.data, **self.config_entry.options}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["pstryk", *STEPS])
+        return self.async_show_menu(step_id="init", menu_options=["pstryk", *STEPS, "mqtt_topics", "panel"])
 
     async def _save(self, step: str, user_input: dict[str, Any] | None, schema: vol.Schema) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -576,3 +614,23 @@ class PstrykAIOptionsFlow(OptionsFlow):
 
     async def async_step_mqtt(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return await self._save("mqtt", user_input, schema_mqtt(self._values()))
+
+    async def async_step_mqtt_topics(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        values = self._values()
+        current = dict(values.get(CONF_MQTT_TOPICS) or {})
+        prefix = str(values.get(CONF_MQTT_PREFIX) or DEFAULT_MQTT_PREFIX)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            overrides, errors = parse_topics(prefix, user_input)
+            if not errors:
+                return self.async_create_entry(data={**self.config_entry.options, CONF_MQTT_TOPICS: overrides})
+            current = {c: str(user_input.get(topic_field(c)) or "") for c in TOPICS}
+        return self.async_show_form(
+            step_id="mqtt_topics",
+            data_schema=schema_topics(current),
+            errors=errors,
+            description_placeholders={"prefix": prefix},
+        )
+
+    async def async_step_panel(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._save("panel", user_input, schema_panel(self._values()))

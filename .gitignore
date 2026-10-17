@@ -17,3 +17,4 @@ secrets.yaml
 .storage/
 cache_*.json
 data/private/
+.claude/

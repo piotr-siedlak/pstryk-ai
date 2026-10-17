@@ -38,6 +38,7 @@ from .models.forecasts import ForecastRun
 from .models.price_slot import PriceSlot, PriceSource, floor_hour, iso
 from .mqtt.discovery import discovery_messages, removal_messages
 from .mqtt.publisher import MqttPublisher
+from .mqtt.schemas import TOPICS
 from .optimization.scheduler import schedule_device
 from .optimization.thermal_storage import plan_buffer
 from .outputs import PstrykAIData, build_messages, compute_windows
@@ -117,7 +118,7 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         self.history = HistoryStore(hass, entry.entry_id, s.history_days + 35)
         self.cache = ProviderCache(hass, entry.entry_id)
         self.forecaster = PriceForecaster(mode=s.forecast_model)
-        self.publisher = MqttPublisher(hass, s.mqtt_prefix, qos=s.mqtt_qos, retain=s.mqtt_retain)
+        self.publisher = MqttPublisher(hass, s.mqtt_prefix, qos=s.mqtt_qos, retain=s.mqtt_retain, topics=s.mqtt_topics)
         self.status: dict[str, ProviderStatus] = {
             "pstryk": ProviderStatus(),
             "entsoe": ProviderStatus(self.entsoe is not None),
@@ -153,6 +154,7 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         self.import_status: dict[str, Any] = {"state": "idle"}
         self._prices_just_confirmed = False
         self._discovery_sent = False
+        self._stale_checked = False
 
     # ================================================================ setup
     async def async_initialize(self) -> None:
@@ -285,6 +287,9 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             self.async_refresh_weather(),
             return_exceptions=False,
         )
+        if not self.daily:
+            # first start: no cached daily/monthly balance yet (uses the 2nd request of the hourly budget)
+            await self.async_refresh_pstryk_daily()
         return await self._compute(reason="startup", forecast=True)
 
     # ===================================================== Pstryk refresh
@@ -661,12 +666,28 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         if sent:
             st.ok(now)
             if self.settings.mqtt_discovery and not self._discovery_sent:
-                for topic, payload in discovery_messages(self.publisher.prefix, self.config_entry.entry_id):
+                for topic, payload in discovery_messages(
+                    self.publisher.prefix, self.config_entry.entry_id, self.publisher.topics
+                ):
                     await self.publisher.async_raw(topic, payload)
                 self._discovery_sent = True
+            await self._clear_stale_topics()
         else:
             st.status = self.publisher.status
             st.last_attempt = now
+
+    async def _clear_stale_topics(self) -> None:
+        """Remove retained messages from topics that were renamed or disabled."""
+        if self._stale_checked:
+            return
+        self._stale_checked = True
+        current = {t for c in TOPICS if (t := self.publisher.topic(c))}
+        previous = set(self.history.state.get("published_topics") or [])
+        for topic in sorted(previous - current):
+            await self.publisher.async_raw(topic, "", retain=True)
+        if previous != current:
+            self.history.state["published_topics"] = sorted(current)
+            self.history.schedule_save("state")
 
     async def async_remove_discovery(self) -> None:
         for topic, payload in removal_messages(self.config_entry.entry_id):

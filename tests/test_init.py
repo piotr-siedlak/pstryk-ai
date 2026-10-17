@@ -320,7 +320,8 @@ async def test_restart_recovery_keeps_confirmed_prices(
     after = _state(hass, "sensor", "current_buy_price")
     assert after.state == before
     assert after.attributes["source"] == "ACTUAL_PSTRYK"
-    assert _state(hass, "sensor", "pstryk_api_status").state == "error"
+    # outage or (after a quick restart) the persisted hourly budget – both keep cached prices
+    assert _state(hass, "sensor", "pstryk_api_status").state in ("error", "rate_limited")
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

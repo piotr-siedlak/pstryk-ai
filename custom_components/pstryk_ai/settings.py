@@ -51,6 +51,7 @@ from .const import (
     CONF_MQTT_PREFIX,
     CONF_MQTT_QOS,
     CONF_MQTT_RETAIN,
+    CONF_MQTT_TOPICS,
     CONF_OPTIMIZATION_ENABLED,
     CONF_OUTDOOR_TEMP_ENTITY,
     CONF_PRICE_INCLUDES_DISTRIBUTION,
@@ -58,6 +59,7 @@ from .const import (
     CONF_PROSUMER,
     CONF_PSE_ENABLED,
     CONF_RISK_AVERSION,
+    CONF_SHOW_PANEL,
     CONF_TGE_ENABLED,
     CONF_THERMAL_LOSS_KW_K,
     CONF_USE_HA_LOCATION,
@@ -141,6 +143,8 @@ class Settings:
     mqtt_qos: int
     mqtt_retain: bool
     mqtt_evcc: bool
+    mqtt_topics: dict[str, str]
+    show_panel: bool
     optimization_enabled: bool
     advisory_mode: bool
     raw: dict[str, Any] = field(default_factory=dict)
@@ -242,6 +246,8 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
         mqtt_qos=int(g(CONF_MQTT_QOS, DEFAULT_MQTT_QOS)),
         mqtt_retain=bool(g(CONF_MQTT_RETAIN, True)),
         mqtt_evcc=bool(g(CONF_MQTT_EVCC, False)),
+        mqtt_topics={str(k): str(v) for k, v in (c.get(CONF_MQTT_TOPICS) or {}).items()},
+        show_panel=bool(g(CONF_SHOW_PANEL, True)),
         optimization_enabled=bool(g(CONF_OPTIMIZATION_ENABLED, True)),
         advisory_mode=bool(g(CONF_ADVISORY_MODE, True)),
         raw=c,

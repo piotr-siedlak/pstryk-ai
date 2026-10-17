@@ -37,6 +37,7 @@
 | Optimisation | `optimization/*` | Pure Python dynamic programming; deterministic. |
 | Orchestration | `coordinator.py` | `DataUpdateCoordinator` without polling interval; event-aware schedule. |
 | Presentation | `sensor.py` …, `mqtt/*` | Time series as attributes (excluded from recorder) or JSON MQTT topics. |
+| Panel | `panel.py`, `frontend/pstryk-ai-panel.js` | Sidebar page; dependency-free web component reading the entity states (no extra API calls). |
 
 ## Scheduler (local time Europe/Warsaw)
 

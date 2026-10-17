@@ -2,6 +2,18 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] – 2026-10-17
+### Added
+- **Pstryk AI sidebar panel**: current price with source, 48 h plan (prices, cheapest window, buffer heating and device schedules on one
+  timeline), 7-day forecast with P10–P90 and daily summaries, buffer decision with temperature trajectory, devices, meter and balance,
+  forecast quality, data-source status. Light/dark/mobile. Option *Panel* to hide it.
+- **Configurable MQTT topics**: every topic can be renamed (relative or absolute) or disabled in *Configure → MQTT topics*; retained
+  messages on old topics are removed automatically; discovery follows the new names.
+
+### Changed
+- Daily/monthly Pstryk balance is fetched once at first start (when nothing is cached), so monthly sensors are filled immediately.
+- Buffer recommendation text shows local time ("od 10:00") instead of an ISO timestamp.
+
 ## [0.1.1] – 2026-10-17
 ### Fixed
 - Pstryk HTTP 404 (meter missing / no active contract) now shows a dedicated setup error instead of "cannot connect".
