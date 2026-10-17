@@ -11,6 +11,7 @@ import json
 from typing import Any
 
 from ..const import VERSION
+from .schemas import resolve_topic
 
 DISCOVERY_PREFIX = "homeassistant"
 
@@ -54,7 +55,7 @@ ITEMS: list[dict[str, Any]] = [
 ]
 
 
-def discovery_messages(prefix: str, entry_id: str) -> list[tuple[str, str]]:
+def discovery_messages(prefix: str, entry_id: str, topics: dict[str, str] | None = None) -> list[tuple[str, str]]:
     node = f"pstryk_ai_{entry_id[:8]}"
     device = {
         "identifiers": [node],
@@ -63,14 +64,19 @@ def discovery_messages(prefix: str, entry_id: str) -> list[tuple[str, str]]:
         "sw_version": VERSION,
     }
     out = []
+    availability = resolve_topic(prefix, "availability", topics)
     for item in ITEMS:
+        state_topic = resolve_topic(prefix, item["topic"], topics)
+        if state_topic is None:
+            continue  # topic disabled by the user
         cfg: dict[str, Any] = {
             "name": item["name"],
             "unique_id": f"{node}_{item['key']}",
-            "state_topic": f"{prefix}/{item['topic']}",
-            "availability_topic": f"{prefix}/availability",
+            "state_topic": state_topic,
             "device": device,
         }
+        if availability:
+            cfg["availability_topic"] = availability
         if item["component"] == "binary_sensor":
             cfg["payload_on"] = "1"
             cfg["payload_off"] = "0"

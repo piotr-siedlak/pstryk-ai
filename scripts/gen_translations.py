@@ -213,6 +213,50 @@ STEP_FIELDS = {
     "mqtt": ["mqtt_enabled", "mqtt_prefix", "mqtt_discovery", "mqtt_qos", "mqtt_retain", "mqtt_evcc"],
 }
 
+# canonical MQTT topics (kept in sync with mqtt/schemas.py by a test)
+TOPICS = [
+    "availability",
+    "status",
+    "prices/current",
+    "prices/current/json",
+    "prices/next",
+    "prices/today",
+    "prices/tomorrow",
+    "prices/pstryk/buy",
+    "prices/pstryk/sell",
+    "prices/tge",
+    "prices/forecast/7d",
+    *[f"prices/forecast/day/{d}" for d in range(1, 8)],
+    "cheap/now",
+    "cheap/next_start",
+    "cheap/best_2h",
+    "cheap/best_4h",
+    "cheap/best_6h",
+    "cheap/best_24h",
+    "cheap/schedule",
+    "weather/current",
+    "weather/forecast",
+    "weather/temperature",
+    "weather/wind",
+    "weather/solar",
+    "optimizer/buffer/should_heat",
+    "optimizer/buffer/mode",
+    "optimizer/buffer/target_temperature",
+    "optimizer/buffer/next_start",
+    "optimizer/buffer/next_stop",
+    "optimizer/buffer/expected_cost",
+    "optimizer/buffer/schedule",
+    "forecast/status",
+    "forecast/confidence",
+    "forecast/last_update",
+    "api/pstryk/status",
+    "api/tge/status",
+    "api/entsoe/status",
+    "api/pse/status",
+    "api/weather/status",
+    "evcc/prices",
+]
+
 STEPS = {
     "user": (
         (
@@ -287,7 +331,26 @@ STEPS = {
     ),
 }
 
+STEPS["mqtt_topics"] = (
+    (
+        "MQTT topics",
+        "Topic names relative to the prefix {prefix}. Start a name with / to make it absolute. Clear a field to stop publishing that topic. Retained messages on renamed or disabled topics are removed automatically.",
+    ),
+    (
+        "Tematy MQTT",
+        "Nazwy tematów względem prefiksu {prefix}. Nazwa zaczynająca się od / jest bezwzględna. Wyczyść pole, aby wyłączyć publikację tematu. Zachowane (retained) wiadomości ze zmienionych lub wyłączonych tematów są usuwane automatycznie.",
+    ),
+)
+STEPS["panel"] = (
+    ("Dashboard panel", "Show the Pstryk AI dashboard in the Home Assistant sidebar."),
+    ("Panel", "Pokaż panel Pstryk AI na pasku bocznym Home Assistant."),
+)
+FIELDS["show_panel"] = ("Show the Pstryk AI panel in the sidebar", "Pokaż panel Pstryk AI na pasku bocznym")
+STEP_FIELDS["panel"] = ["show_panel"]
+
 ERRORS = {
+    "invalid_topic": ("Invalid topic (no #, + or empty levels)", "Nieprawidłowy temat (bez #, + i pustych poziomów)"),
+    "duplicate_topic": ("Two topics resolve to the same name", "Dwa tematy mają tę samą nazwę"),
     "invalid_auth": ("Invalid API key", "Nieprawidłowy klucz API"),
     "cannot_connect": ("Cannot connect to Pstryk", "Brak połączenia z Pstryk"),
     "no_contract": (
@@ -309,6 +372,8 @@ ABORTS = {
     "reauth_successful": ("Re-authentication successful", "Ponowna autoryzacja zakończona"),
 }
 MENU = {
+    "mqtt_topics": ("MQTT topics", "Tematy MQTT"),
+    "panel": ("Dashboard panel", "Panel"),
     "pstryk": ("Pstryk and tariff", "Pstryk i taryfa"),
     "location": ("Location", "Lokalizacja"),
     "market": ("Market data", "Dane rynkowe"),
@@ -386,6 +451,8 @@ def build(lang: int) -> dict:
         fields = STEP_FIELDS.get(step_id)
         if fields:
             out["data"] = {f: FIELDS[f][lang] for f in fields}
+        if step_id == "mqtt_topics":
+            out["data"] = {"topic_" + t.replace("/", "_"): t for t in TOPICS}
         if step_id == "reauth_confirm":
             out["data"] = {"api_key": FIELDS["api_key"][lang]}
         return out
@@ -416,7 +483,19 @@ def build(lang: int) -> dict:
         ]
     }
     option_steps = {
-        s: step(s) for s in ["pstryk", "location", "market", "weather", "forecast", "optimization", "buffer", "mqtt"]
+        s: step(s)
+        for s in [
+            "pstryk",
+            "location",
+            "market",
+            "weather",
+            "forecast",
+            "optimization",
+            "buffer",
+            "mqtt",
+            "mqtt_topics",
+            "panel",
+        ]
     }
     option_steps["init"] = {"title": "Pstryk AI", "menu_options": {k: v[lang] for k, v in MENU.items()}}
     return {

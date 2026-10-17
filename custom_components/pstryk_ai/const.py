@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "pstryk_ai"
 NAME: Final = "Pstryk AI"
 MANUFACTURER: Final = "Pstryk AI (community)"
-VERSION: Final = "0.1.1"
+VERSION: Final = "0.2.0"
 
 LOCAL_TZ: Final = "Europe/Warsaw"
 
@@ -78,6 +78,8 @@ CONF_MQTT_DISCOVERY: Final = "mqtt_discovery"
 CONF_MQTT_QOS: Final = "mqtt_qos"
 CONF_MQTT_RETAIN: Final = "mqtt_retain"
 CONF_MQTT_EVCC: Final = "mqtt_evcc"
+CONF_MQTT_TOPICS: Final = "mqtt_topics"
+CONF_SHOW_PANEL: Final = "show_panel"
 
 # Runtime switches (persisted in options)
 CONF_OPTIMIZATION_ENABLED: Final = "optimization_enabled"

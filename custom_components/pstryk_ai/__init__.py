@@ -21,6 +21,7 @@ from .const import (
     SERVICE_RUN_BACKTEST,
 )
 from .coordinator import PstrykAICoordinator
+from .panel import async_register_panel, async_unregister_panel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,6 +91,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: PstrykAIConfigEntry) -> 
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     coordinator.async_start_schedule()
+    if coordinator.settings.show_panel:
+        await async_register_panel(hass)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     if coordinator.history_is_short():
         coordinator.async_start_history_import()
@@ -107,6 +110,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: PstrykAIConfigEntry) ->
     coordinator: PstrykAICoordinator | None = getattr(entry, "runtime_data", None)
     if unloaded and coordinator is not None:
         await coordinator.async_shutdown()
+    if unloaded and not [e for e in hass.config_entries.async_loaded_entries(DOMAIN) if e.entry_id != entry.entry_id]:
+        async_unregister_panel(hass)
     return unloaded
 
 

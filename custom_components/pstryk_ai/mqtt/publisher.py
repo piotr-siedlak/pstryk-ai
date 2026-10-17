@@ -16,7 +16,7 @@ import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .schemas import Message
+from .schemas import Message, resolve_topic
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,18 +29,22 @@ class MqttPublisher:
         *,
         qos: int = 1,
         retain: bool = True,
+        topics: dict[str, str] | None = None,
     ) -> None:
         self.hass = hass
         self.prefix = prefix.strip().strip("/")
         self.qos = qos
         self.retain = retain
+        self.topics = dict(topics or {})
+        self.sent_topics: set[str] = set()
         self.last_publish: datetime | None = None
         self.last_error: str | None = None
         self.published = 0
         self.skipped = 0
 
-    def topic(self, suffix: str) -> str:
-        return f"{self.prefix}/{suffix.strip('/')}"
+    def topic(self, suffix: str) -> str | None:
+        """Full topic for a canonical name (``None`` = disabled by the user)."""
+        return resolve_topic(self.prefix, suffix.strip("/"), self.topics)
 
     def available(self) -> bool:
         if "mqtt" not in self.hass.config.components:
@@ -71,12 +75,15 @@ class MqttPublisher:
 
         expiry_supported = _supports_expiry(mqtt.async_publish)
         sent = 0
+        messages = [m for m in messages if self.topic(m.topic) is not None]
         for msg in messages:
             kwargs: dict = {"qos": self.qos, "retain": msg.retain and self.retain}
             if msg.expiry_s is not None and expiry_supported:
                 kwargs["message_expiry_interval"] = msg.expiry_s
             try:
-                await mqtt.async_publish(self.hass, self.topic(msg.topic), msg.payload, **kwargs)
+                full = self.topic(msg.topic)
+                await mqtt.async_publish(self.hass, full, msg.payload, **kwargs)
+                self.sent_topics.add(full)
                 sent += 1
             except HomeAssistantError as err:
                 self.last_error = str(err)[:120]

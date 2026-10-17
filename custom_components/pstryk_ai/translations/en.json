@@ -113,6 +113,8 @@
       }
     },
     "error": {
+      "invalid_topic": "Invalid topic (no #, + or empty levels)",
+      "duplicate_topic": "Two topics resolve to the same name",
       "invalid_auth": "Invalid API key",
       "cannot_connect": "Cannot connect to Pstryk",
       "no_contract": "Pstryk found no meter or active contract for this key",
@@ -228,9 +230,70 @@
           "mqtt_evcc": "EVCC-compatible price topic"
         }
       },
+      "mqtt_topics": {
+        "title": "MQTT topics",
+        "description": "Topic names relative to the prefix {prefix}. Start a name with / to make it absolute. Clear a field to stop publishing that topic. Retained messages on renamed or disabled topics are removed automatically.",
+        "data": {
+          "topic_availability": "availability",
+          "topic_status": "status",
+          "topic_prices_current": "prices/current",
+          "topic_prices_current_json": "prices/current/json",
+          "topic_prices_next": "prices/next",
+          "topic_prices_today": "prices/today",
+          "topic_prices_tomorrow": "prices/tomorrow",
+          "topic_prices_pstryk_buy": "prices/pstryk/buy",
+          "topic_prices_pstryk_sell": "prices/pstryk/sell",
+          "topic_prices_tge": "prices/tge",
+          "topic_prices_forecast_7d": "prices/forecast/7d",
+          "topic_prices_forecast_day_1": "prices/forecast/day/1",
+          "topic_prices_forecast_day_2": "prices/forecast/day/2",
+          "topic_prices_forecast_day_3": "prices/forecast/day/3",
+          "topic_prices_forecast_day_4": "prices/forecast/day/4",
+          "topic_prices_forecast_day_5": "prices/forecast/day/5",
+          "topic_prices_forecast_day_6": "prices/forecast/day/6",
+          "topic_prices_forecast_day_7": "prices/forecast/day/7",
+          "topic_cheap_now": "cheap/now",
+          "topic_cheap_next_start": "cheap/next_start",
+          "topic_cheap_best_2h": "cheap/best_2h",
+          "topic_cheap_best_4h": "cheap/best_4h",
+          "topic_cheap_best_6h": "cheap/best_6h",
+          "topic_cheap_best_24h": "cheap/best_24h",
+          "topic_cheap_schedule": "cheap/schedule",
+          "topic_weather_current": "weather/current",
+          "topic_weather_forecast": "weather/forecast",
+          "topic_weather_temperature": "weather/temperature",
+          "topic_weather_wind": "weather/wind",
+          "topic_weather_solar": "weather/solar",
+          "topic_optimizer_buffer_should_heat": "optimizer/buffer/should_heat",
+          "topic_optimizer_buffer_mode": "optimizer/buffer/mode",
+          "topic_optimizer_buffer_target_temperature": "optimizer/buffer/target_temperature",
+          "topic_optimizer_buffer_next_start": "optimizer/buffer/next_start",
+          "topic_optimizer_buffer_next_stop": "optimizer/buffer/next_stop",
+          "topic_optimizer_buffer_expected_cost": "optimizer/buffer/expected_cost",
+          "topic_optimizer_buffer_schedule": "optimizer/buffer/schedule",
+          "topic_forecast_status": "forecast/status",
+          "topic_forecast_confidence": "forecast/confidence",
+          "topic_forecast_last_update": "forecast/last_update",
+          "topic_api_pstryk_status": "api/pstryk/status",
+          "topic_api_tge_status": "api/tge/status",
+          "topic_api_entsoe_status": "api/entsoe/status",
+          "topic_api_pse_status": "api/pse/status",
+          "topic_api_weather_status": "api/weather/status",
+          "topic_evcc_prices": "evcc/prices"
+        }
+      },
+      "panel": {
+        "title": "Dashboard panel",
+        "description": "Show the Pstryk AI dashboard in the Home Assistant sidebar.",
+        "data": {
+          "show_panel": "Show the Pstryk AI panel in the sidebar"
+        }
+      },
       "init": {
         "title": "Pstryk AI",
         "menu_options": {
+          "mqtt_topics": "MQTT topics",
+          "panel": "Dashboard panel",
           "pstryk": "Pstryk and tariff",
           "location": "Location",
           "market": "Market data",
@@ -243,6 +306,8 @@
       }
     },
     "error": {
+      "invalid_topic": "Invalid topic (no #, + or empty levels)",
+      "duplicate_topic": "Two topics resolve to the same name",
       "invalid_auth": "Invalid API key",
       "cannot_connect": "Cannot connect to Pstryk",
       "no_contract": "Pstryk found no meter or active contract for this key",

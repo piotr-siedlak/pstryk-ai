@@ -14,6 +14,13 @@ The wizard has 9 steps; every option except the API key stays editable via *Conf
 | 8 MQTT | enable, prefix, discovery, QoS, retain, EVCC topic |
 | 9 Validate | connectivity results for PSE, Open-Meteo, MQTT, ENTSO-E |
 
+Additional options (menu only):
+
+| Option | Purpose |
+|---|---|
+| MQTT topics | rename (relative or absolute) or disable each of the 46 topics |
+| Panel | show/hide the *Pstryk AI* sidebar panel |
+
 ## Price-source precedence
 1. `ACTUAL_PSTRYK` – confirmed customer price from Pstryk (`price_gross`, gross, energy component).
 2. `PUBLISHED_TGE` – published day-ahead market price (ENTSO-E or TGE) converted with the tariff: `(market/1000 + margin + excise)·(1+VAT)`.

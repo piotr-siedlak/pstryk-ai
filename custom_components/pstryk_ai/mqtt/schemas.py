@@ -21,6 +21,84 @@ from ..const import LOCAL_TZ
 from ..models.price_slot import PriceSlot, iso
 
 SCHEMA = "pstryk_ai/v1"
+
+# Canonical topic names (relative to the prefix). Users may rename or disable
+# each one in the options ("Tematy MQTT"); see resolve_topic().
+TOPICS: tuple[str, ...] = (
+    "availability",
+    "status",
+    "prices/current",
+    "prices/current/json",
+    "prices/next",
+    "prices/today",
+    "prices/tomorrow",
+    "prices/pstryk/buy",
+    "prices/pstryk/sell",
+    "prices/tge",
+    "prices/forecast/7d",
+    *(f"prices/forecast/day/{d}" for d in range(1, 8)),
+    "cheap/now",
+    "cheap/next_start",
+    "cheap/best_2h",
+    "cheap/best_4h",
+    "cheap/best_6h",
+    "cheap/best_24h",
+    "cheap/schedule",
+    "weather/current",
+    "weather/forecast",
+    "weather/temperature",
+    "weather/wind",
+    "weather/solar",
+    "optimizer/buffer/should_heat",
+    "optimizer/buffer/mode",
+    "optimizer/buffer/target_temperature",
+    "optimizer/buffer/next_start",
+    "optimizer/buffer/next_stop",
+    "optimizer/buffer/expected_cost",
+    "optimizer/buffer/schedule",
+    "forecast/status",
+    "forecast/confidence",
+    "forecast/last_update",
+    "api/pstryk/status",
+    "api/tge/status",
+    "api/entsoe/status",
+    "api/pse/status",
+    "api/weather/status",
+    "evcc/prices",
+)
+
+_INVALID = set("#+\0")
+
+
+def topic_field(canonical: str) -> str:
+    """Options-form field name for a canonical topic."""
+    return "topic_" + canonical.replace("/", "_")
+
+
+def validate_topic(value: str) -> bool:
+    """Empty = disabled; otherwise no wildcards and no empty levels."""
+    value = value.strip()
+    if not value:
+        return True
+    body = value[1:] if value.startswith("/") else value
+    if not body or any(c in _INVALID for c in body) or len(body) > 200:
+        return False
+    return all(part for part in body.split("/"))
+
+
+def resolve_topic(prefix: str, canonical: str, overrides: dict[str, str] | None) -> str | None:
+    """Full topic for ``canonical`` or ``None`` when the user disabled it.
+
+    Override values are relative to the prefix; a leading ``/`` makes them absolute.
+    """
+    value = canonical if not overrides or canonical not in overrides else (overrides[canonical] or "").strip()
+    if not value:
+        return None
+    if value.startswith("/"):
+        return value[1:]
+    return f"{prefix.strip().strip('/')}/{value.strip('/')}"
+
+
 TZ = ZoneInfo(LOCAL_TZ)
 
 

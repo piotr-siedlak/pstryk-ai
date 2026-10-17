@@ -27,7 +27,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import math
+from zoneinfo import ZoneInfo
 
+from ..const import LOCAL_TZ
 from ..models.optimizer import BufferPlan, BufferStep
 from ..models.price_slot import PriceSlot, iso
 from .cheapest_hours import effective_price
@@ -69,6 +71,12 @@ class BufferConfig:
     @property
     def capacity(self) -> float:
         return thermal_capacity_kwh_per_k(self.volume_l)
+
+
+def _local_hhmm(moment: datetime | None) -> str:
+    if moment is None:
+        return "–"
+    return moment.astimezone(ZoneInfo(LOCAL_TZ)).strftime("%H:%M")
 
 
 def heat_demand_kw(cfg: BufferConfig, t_out: float) -> float:
@@ -271,7 +279,7 @@ def plan_buffer(
     if should_heat:
         reason = "Grzanie teraz – najniższy koszt ciepła w horyzoncie"
     elif heating:
-        reason = f"Czekaj – tańsze ciepło od {iso(first_start)}"
+        reason = f"Czekaj – tańsze ciepło od {_local_hhmm(first_start)}"
     else:
         reason = "Bufor wystarczający – grzanie niepotrzebne w horyzoncie"
     if min_temp < cfg.min_t:

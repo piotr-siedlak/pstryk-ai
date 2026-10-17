@@ -37,6 +37,21 @@ Publication uses the broker configured in Home Assistant's MQTT integration. Pre
 | `api/pstryk/status`, `api/tge/status`, `api/entsoe/status`, `api/pse/status`, `api/weather/status` | scalar | yes | `ok`, `error`, `rate_limited`, … |
 | `evcc/prices` (optional) | JSON list | yes | `[{"start","end","value"}]` (EVCC custom forecast tariff) |
 
+## Renaming or disabling topics
+*Settings → Devices & services → Pstryk AI → Configure → MQTT topics* lists all 46 topics. Each field is the topic name **relative to
+the prefix**:
+
+| Field value | Published to |
+|---|---|
+| `prices/current` (default) | `pstryk_ai/home/prices/current` |
+| `cena/teraz` | `pstryk_ai/home/cena/teraz` |
+| `/loxone/energia/cena` (leading `/`) | `loxone/energia/cena` (absolute) |
+| *(empty)* | not published |
+
+Wildcards (`#`, `+`) and empty levels are rejected, and two topics may not resolve to the same name. After a change the integration
+removes retained messages from topics it no longer publishes, so subscribers do not keep reading stale data. MQTT discovery follows the
+renamed topics; the JSON payload schema does not change.
+
 ## Example payloads
 
 `pstryk_ai/home/prices/today`

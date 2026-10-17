@@ -36,6 +36,14 @@ cen „opublikowanych na giełdzie”.
 8. **MQTT** – prefiks, discovery, QoS, retain, temat EVCC.
 9. **Test i weryfikacja** – wyniki połączeń.
 
+## Panel Pstryk AI
+Integracja dodaje stronę **Pstryk AI** na pasku bocznym Home Assistant (można ją wyłączyć: *Konfiguruj → Panel*). Pokazuje:
+cenę teraz (z oznaczeniem, czy jest potwierdzona), **plan na dziś i jutro** – ceny, najtańsze okno, grzanie bufora i pracę urządzeń
+na jednej osi czasu, **prognozę 7 dni** z zakresem P10–P90, decyzję dla bufora z planowaną temperaturą, harmonogramy urządzeń,
+licznik i saldo, jakość prognozy oraz status źródeł danych. Działa w trybie jasnym, ciemnym i na telefonie.
+
+![Panel Pstryk AI](docs/images/panel.jpg)
+
 ## Pierwszeństwo źródeł cen
 `ACTUAL_PSTRYK` (potwierdzona) > `PUBLISHED_TGE` (opublikowana cena giełdowa przeliczona taryfą – szacunek) > `MODEL_FORECAST` >
 `FALLBACK_FORECAST` (model bazowy) > `UNAVAILABLE`. Każdy sensor i rekord MQTT ma pole `source` i `quality`.
@@ -60,7 +68,9 @@ bez odpytywania API. Godzina 13:00 nie jest traktowana jako gwarancja dostępno�
 `prices/current|next|today|tomorrow|pstryk/buy|pstryk/sell|tge|forecast/7d|forecast/day/1..7`, `cheap/now|next_start|best_2h|best_4h|best_6h|best_24h|schedule`,
 `weather/current|forecast|temperature|wind|solar`, `optimizer/buffer/should_heat|mode|target_temperature|next_start|next_stop|expected_cost|schedule`,
 `status`, `availability`, `forecast/status|confidence|last_update`, `api/pstryk/status`, `api/tge/status`, opcjonalnie `evcc/prices`.
-Szczegóły i przykłady: [docs/MQTT_TOPICS.md](docs/MQTT_TOPICS.md). `should_heat` nie jest retained i wygasa po ~75 min.
+Szczegóły i przykłady: [docs/MQTT_TOPICS.md](docs/MQTT_TOPICS.md).
+**Każdy temat można zmienić lub wyłączyć** w *Konfiguruj → Tematy MQTT* (nazwa względem prefiksu, `/` na początku = temat bezwzględny,
+puste pole = brak publikacji). Stare zachowane wiadomości ze zmienionych tematów są usuwane automatycznie. `should_heat` nie jest retained i wygasa po ~75 min.
 
 ## Loxone
 Przykład logiki z watchdogiem świeżości i blokadami: [examples/loxone.md](examples/loxone.md).

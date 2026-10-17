@@ -1,6 +1,6 @@
 # Pstryk AI – Energy Intelligence & Optimization
 
-[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.1.1-blue)
+[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.2.0-blue)
 
 Home Assistant integration for Polish [Pstryk.pl](https://pstryk.pl) customers. It combines **confirmed Pstryk prices** with public market,
 power-system and weather data to build a **rolling 7-day (168 h) probabilistic price forecast**, finds the cheapest periods, plans flexible
@@ -24,8 +24,16 @@ loads and a **heat-pump buffer**, and publishes everything to Home Assistant and
 * Event-aware scheduler: 00:05 rollover, 06:00/18:00 weather, 10:45 Fixing I, **13:00 main calculation**, retries until Pstryk confirms,
   14:05 Fixing II, sensor updates exactly at slot boundaries without API calls.
 * MQTT: versioned JSON + scalar topics, per-day forecast topics, retained data with `valid_until`, non-retained expiring control topic,
-  optional discovery and EVCC topic.
+  optional discovery and EVCC topic. **Every topic can be renamed or disabled** in *Configure → MQTT topics*.
 * Polish UI (entity names), English/Polish config flow, diagnostics with redaction, repairs, services, native dashboard.
+
+## Dashboard panel
+A **Pstryk AI** page is added to the Home Assistant sidebar (can be turned off in *Configure → Panel*). It shows the current price with its
+source, the 48-hour plan (prices, cheapest window, buffer heating and device schedules on one timeline), the 7-day forecast with its
+P10–P90 range, the buffer decision with the planned temperature, device schedules, meter data, forecast quality and data-source status.
+
+![Pstryk AI panel](docs/images/panel.jpg)
+![Pstryk AI panel – forecast](docs/images/panel-forecast.jpg)
 
 ## Measured forecast quality
 Rolling-origin backtest on public data (97 origins, 2026): MAE ≈ 85–95 PLN/MWh for days 1–7 with PSE + weather inputs vs 125–136 PLN/MWh
