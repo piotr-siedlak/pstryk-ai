@@ -1,0 +1,14 @@
+{
+  "domain": "pstryk_ai",
+  "name": "Pstryk AI",
+  "after_dependencies": ["mqtt"],
+  "codeowners": ["@piotr-siedlak"],
+  "config_flow": true,
+  "documentation": "https://github.com/piotr-siedlak/pstryk-ai",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/piotr-siedlak/pstryk-ai/issues",
+  "loggers": ["custom_components.pstryk_ai"],
+  "requirements": [],
+  "version": "0.1.0"
+}

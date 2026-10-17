@@ -1,0 +1,596 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pstryk – klucz API",
+        "description": "Podaj klucz API Pstryk (wygenerowany w aplikacji Pstryk). Klucz jest sprawdzany jednym zapytaniem i nigdy nie jest logowany ani publikowany.",
+        "data": {
+          "api_key": "Klucz API",
+          "prosumer": "Prosument (oddawanie energii)",
+          "vat_rate": "Stawka VAT",
+          "energy_margin_net": "Marża za energię (netto)",
+          "excise_net": "Akcyza (netto)",
+          "var_distribution_net": "Zmienna opłata dystrybucyjna (netto)",
+          "pstryk_price_includes_distribution": "Cena Pstryk zawiera dystrybucję",
+          "auto_calibrate_tariff": "Lokalna autokalibracja taryfy (opcjonalnie)"
+        }
+      },
+      "location": {
+        "title": "Lokalizacja",
+        "description": "Lokalizacja budynku dla pogody lokalnej (zapotrzebowanie na ciepło, COP).",
+        "data": {
+          "use_ha_location": "Użyj lokalizacji Home Assistant",
+          "latitude": "Szerokość geograficzna",
+          "longitude": "Długość geograficzna"
+        }
+      },
+      "market": {
+        "title": "Dane rynkowe",
+        "description": "Zalecanym źródłem historii cen RDN jest ENTSO-E (bezpłatny token). PSE RCE służy wyłącznie jako oznaczony zamiennik. Parsowanie strony TGE jest eksperymentalne i opcjonalne.",
+        "data": {
+          "market_provider": "Źródło cen rynku dnia następnego",
+          "entsoe_token": "Token ENTSO-E",
+          "pse_enabled": "Użyj API PSE (zapotrzebowanie, wiatr, PV, RCE)",
+          "tge_enabled": "Użyj strony TGE (eksperymentalne)",
+          "eur_pln_rate": "Kurs EUR/PLN (tylko gdy źródło w EUR)"
+        }
+      },
+      "weather": {
+        "title": "Pogoda",
+        "description": "Prognozy Open-Meteo dla budynku i reprezentatywnych regionów Polski.",
+        "data": {
+          "weather_model": "Model pogody",
+          "weather_refresh_hours": "Interwał odświeżania pogody",
+          "history_days": "Długość historii"
+        }
+      },
+      "forecast": {
+        "title": "Prognozowanie",
+        "description": "Krocząca 168-godzinna prognoza probabilistyczna (P10/P50/P90).",
+        "data": {
+          "forecast_horizon_hours": "Horyzont prognozy",
+          "forecast_model": "Model prognozy",
+          "auto_retrain": "Automatyczne cotygodniowe trenowanie",
+          "risk_aversion": "Awersja do ryzyka (niepewność prognozy)",
+          "max_speculative_hours": "Maks. odkładanie na podstawie prognozy"
+        }
+      },
+      "optimization": {
+        "title": "Optymalizacja",
+        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+        "data": {
+          "cheap_hours_count": "Liczba najtańszych godzin",
+          "price_threshold": "Bezwzględny próg taniej ceny",
+          "device_profiles": "Profile urządzeń (lista JSON)"
+        }
+      },
+      "buffer": {
+        "title": "Bufor ciepła",
+        "description": "Doradcza optymalizacja bufora pompy ciepła. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
+        "data": {
+          "buffer_enabled": "Włącz optymalizację bufora",
+          "buffer_temperature_entity": "Czujnik temperatury bufora",
+          "outdoor_temperature_entity": "Czujnik temperatury zewnętrznej (opcjonalnie)",
+          "buffer_capacity_liters": "Pojemność bufora",
+          "buffer_min_temperature": "Minimalna temperatura bufora",
+          "buffer_max_temperature": "Maksymalna temperatura bufora",
+          "buffer_target_temperature": "Domyślna temperatura docelowa",
+          "heat_pump_electrical_power": "Moc elektryczna pompy ciepła",
+          "heat_pump_thermal_power": "Moc grzewcza pompy ciepła",
+          "heat_pump_cop": "Nominalny COP (A7/W35)",
+          "heat_pump_cop_curve": "Krzywa COP przy W35, np. -15:2.0,-7:2.6,2:3.3,7:4.1",
+          "thermal_losses": "Straty postojowe bufora",
+          "building_heat_loss_kw_per_k": "Zapotrzebowanie budynku na ciepło na 1 K",
+          "heating_base_temperature": "Temperatura bazowa ogrzewania",
+          "minimum_runtime": "Minimalny czas pracy sprężarki",
+          "minimum_offtime": "Minimalny czas postoju sprężarki",
+          "maximum_start_count": "Maksymalna liczba startów na dobę",
+          "buffer_strategy": "Strategia bufora"
+        }
+      },
+      "mqtt": {
+        "title": "MQTT",
+        "description": "Używa brokera MQTT skonfigurowanego w Home Assistant.",
+        "data": {
+          "mqtt_enabled": "Publikuj do MQTT",
+          "mqtt_prefix": "Prefiks tematów",
+          "mqtt_discovery": "MQTT Discovery (tylko kluczowe wartości)",
+          "mqtt_qos": "QoS",
+          "mqtt_retain": "Retain dla tematów z danymi",
+          "mqtt_evcc": "Temat cen zgodny z EVCC"
+        }
+      },
+      "validate": {
+        "title": "Test i weryfikacja",
+        "description": "Wyniki testów połączeń:\n{results}\n\nZatwierdź, aby zakończyć. Historyczne publiczne dane rynkowe zostaną zaimportowane w tle."
+      },
+      "reauth_confirm": {
+        "title": "Ponowna autoryzacja Pstryk",
+        "description": "Klucz API Pstryk został odrzucony. Podaj nowy klucz.",
+        "data": {
+          "api_key": "Klucz API"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nieprawidłowy klucz API",
+      "cannot_connect": "Brak połączenia z Pstryk",
+      "rate_limited": "Osiągnięto limit zapytań Pstryk – spróbuj za godzinę",
+      "invalid_entsoe": "Token ENTSO-E odrzucony",
+      "entsoe_token_required": "To źródło wymaga tokenu ENTSO-E",
+      "invalid_profiles": "Nieprawidłowy JSON profili urządzeń",
+      "invalid_temperature_range": "Maksimum musi być wyższe od minimum",
+      "invalid_prefix": "Nieprawidłowy prefiks tematu MQTT"
+    },
+    "abort": {
+      "already_configured": "Ten klucz Pstryk jest już skonfigurowany",
+      "reauth_successful": "Ponowna autoryzacja zakończona"
+    }
+  },
+  "options": {
+    "step": {
+      "pstryk": {
+        "title": "Pstryk i taryfa",
+        "description": "Parametry taryfy używane do szacowania cen, których Pstryk jeszcze nie potwierdził.",
+        "data": {
+          "prosumer": "Prosument (oddawanie energii)",
+          "vat_rate": "Stawka VAT",
+          "energy_margin_net": "Marża za energię (netto)",
+          "excise_net": "Akcyza (netto)",
+          "var_distribution_net": "Zmienna opłata dystrybucyjna (netto)",
+          "pstryk_price_includes_distribution": "Cena Pstryk zawiera dystrybucję",
+          "auto_calibrate_tariff": "Lokalna autokalibracja taryfy (opcjonalnie)"
+        }
+      },
+      "location": {
+        "title": "Lokalizacja",
+        "description": "Lokalizacja budynku dla pogody lokalnej (zapotrzebowanie na ciepło, COP).",
+        "data": {
+          "use_ha_location": "Użyj lokalizacji Home Assistant",
+          "latitude": "Szerokość geograficzna",
+          "longitude": "Długość geograficzna"
+        }
+      },
+      "market": {
+        "title": "Dane rynkowe",
+        "description": "Zalecanym źródłem historii cen RDN jest ENTSO-E (bezpłatny token). PSE RCE służy wyłącznie jako oznaczony zamiennik. Parsowanie strony TGE jest eksperymentalne i opcjonalne.",
+        "data": {
+          "market_provider": "Źródło cen rynku dnia następnego",
+          "entsoe_token": "Token ENTSO-E",
+          "pse_enabled": "Użyj API PSE (zapotrzebowanie, wiatr, PV, RCE)",
+          "tge_enabled": "Użyj strony TGE (eksperymentalne)",
+          "eur_pln_rate": "Kurs EUR/PLN (tylko gdy źródło w EUR)"
+        }
+      },
+      "weather": {
+        "title": "Pogoda",
+        "description": "Prognozy Open-Meteo dla budynku i reprezentatywnych regionów Polski.",
+        "data": {
+          "weather_model": "Model pogody",
+          "weather_refresh_hours": "Interwał odświeżania pogody",
+          "history_days": "Długość historii"
+        }
+      },
+      "forecast": {
+        "title": "Prognozowanie",
+        "description": "Krocząca 168-godzinna prognoza probabilistyczna (P10/P50/P90).",
+        "data": {
+          "forecast_horizon_hours": "Horyzont prognozy",
+          "forecast_model": "Model prognozy",
+          "auto_retrain": "Automatyczne cotygodniowe trenowanie",
+          "risk_aversion": "Awersja do ryzyka (niepewność prognozy)",
+          "max_speculative_hours": "Maks. odkładanie na podstawie prognozy"
+        }
+      },
+      "optimization": {
+        "title": "Optymalizacja",
+        "description": "Preferencje tanich godzin i profile urządzeń jako lista JSON (name, power_kw, duration_h, consecutive, …) – format: docs/OPTIMIZATION.md.",
+        "data": {
+          "cheap_hours_count": "Liczba najtańszych godzin",
+          "price_threshold": "Bezwzględny próg taniej ceny",
+          "device_profiles": "Profile urządzeń (lista JSON)"
+        }
+      },
+      "buffer": {
+        "title": "Bufor ciepła",
+        "description": "Doradcza optymalizacja bufora pompy ciepła. Zabezpieczenia sprzętowe zawsze pozostają lokalne.",
+        "data": {
+          "buffer_enabled": "Włącz optymalizację bufora",
+          "buffer_temperature_entity": "Czujnik temperatury bufora",
+          "outdoor_temperature_entity": "Czujnik temperatury zewnętrznej (opcjonalnie)",
+          "buffer_capacity_liters": "Pojemność bufora",
+          "buffer_min_temperature": "Minimalna temperatura bufora",
+          "buffer_max_temperature": "Maksymalna temperatura bufora",
+          "buffer_target_temperature": "Domyślna temperatura docelowa",
+          "heat_pump_electrical_power": "Moc elektryczna pompy ciepła",
+          "heat_pump_thermal_power": "Moc grzewcza pompy ciepła",
+          "heat_pump_cop": "Nominalny COP (A7/W35)",
+          "heat_pump_cop_curve": "Krzywa COP przy W35, np. -15:2.0,-7:2.6,2:3.3,7:4.1",
+          "thermal_losses": "Straty postojowe bufora",
+          "building_heat_loss_kw_per_k": "Zapotrzebowanie budynku na ciepło na 1 K",
+          "heating_base_temperature": "Temperatura bazowa ogrzewania",
+          "minimum_runtime": "Minimalny czas pracy sprężarki",
+          "minimum_offtime": "Minimalny czas postoju sprężarki",
+          "maximum_start_count": "Maksymalna liczba startów na dobę",
+          "buffer_strategy": "Strategia bufora"
+        }
+      },
+      "mqtt": {
+        "title": "MQTT",
+        "description": "Używa brokera MQTT skonfigurowanego w Home Assistant.",
+        "data": {
+          "mqtt_enabled": "Publikuj do MQTT",
+          "mqtt_prefix": "Prefiks tematów",
+          "mqtt_discovery": "MQTT Discovery (tylko kluczowe wartości)",
+          "mqtt_qos": "QoS",
+          "mqtt_retain": "Retain dla tematów z danymi",
+          "mqtt_evcc": "Temat cen zgodny z EVCC"
+        }
+      },
+      "init": {
+        "title": "Pstryk AI",
+        "menu_options": {
+          "pstryk": "Pstryk i taryfa",
+          "location": "Lokalizacja",
+          "market": "Dane rynkowe",
+          "weather": "Pogoda",
+          "forecast": "Prognozowanie",
+          "optimization": "Optymalizacja",
+          "buffer": "Bufor ciepła",
+          "mqtt": "MQTT"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nieprawidłowy klucz API",
+      "cannot_connect": "Brak połączenia z Pstryk",
+      "rate_limited": "Osiągnięto limit zapytań Pstryk – spróbuj za godzinę",
+      "invalid_entsoe": "Token ENTSO-E odrzucony",
+      "entsoe_token_required": "To źródło wymaga tokenu ENTSO-E",
+      "invalid_profiles": "Nieprawidłowy JSON profili urządzeń",
+      "invalid_temperature_range": "Maksimum musi być wyższe od minimum",
+      "invalid_prefix": "Nieprawidłowy prefiks tematu MQTT"
+    }
+  },
+  "selector": {
+    "market_provider": {
+      "options": {
+        "entsoe": "ENTSO-E (zalecane)",
+        "tge": "Strona TGE (eksperymentalne)",
+        "pse_rce": "PSE RCE (zamiennik, nie RDN)"
+      }
+    },
+    "weather_model": {
+      "options": {
+        "ecmwf_ifs025": "ECMWF IFS 0.25°",
+        "icon_seamless": "DWD ICON",
+        "gfs_seamless": "NOAA GFS",
+        "best_match": "Open-Meteo najlepsze dopasowanie"
+      }
+    },
+    "forecast_model": {
+      "options": {
+        "auto": "Automatyczny (zespół, gdy poprawia wynik)",
+        "baseline": "Bazowy sezonowy",
+        "ridge": "Regresja grzbietowa"
+      }
+    },
+    "buffer_strategy": {
+      "options": {
+        "min_cost": "Minimalny koszt",
+        "comfort": "Komfort"
+      }
+    },
+    "mqtt_qos": {
+      "options": {
+        "0": "0",
+        "1": "1",
+        "2": "2"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_buy_price": {
+        "name": "Aktualna cena zakupu"
+      },
+      "current_sell_price": {
+        "name": "Aktualna cena sprzedaży"
+      },
+      "current_all_in_price": {
+        "name": "Aktualna cena całkowita (z dystrybucją)"
+      },
+      "next_hour_price": {
+        "name": "Cena w następnej godzinie"
+      },
+      "average_today": {
+        "name": "Średnia cena dzisiaj"
+      },
+      "average_tomorrow": {
+        "name": "Średnia cena jutro"
+      },
+      "cheapest_hour_today": {
+        "name": "Najtańsza godzina dzisiaj"
+      },
+      "cheapest_hour_tomorrow": {
+        "name": "Najtańsza godzina jutro"
+      },
+      "cheapest_3h": {
+        "name": "Najtańsze 3 godziny"
+      },
+      "cheapest_6h": {
+        "name": "Najtańsze 6 godzin"
+      },
+      "cheapest_n_hours": {
+        "name": "Najtańsze N godzin (24 h)"
+      },
+      "most_expensive_hour": {
+        "name": "Najdroższa godzina"
+      },
+      "forecast_24h": {
+        "name": "Prognoza ceny za 24 godziny"
+      },
+      "forecast_48h": {
+        "name": "Prognoza ceny za 48 godzin"
+      },
+      "forecast_72h": {
+        "name": "Prognoza ceny za 72 godziny"
+      },
+      "forecast_7d": {
+        "name": "Prognoza ceny za 7 dni"
+      },
+      "average_7d": {
+        "name": "Średnia prognozowana cena na 7 dni"
+      },
+      "cheap_probability": {
+        "name": "Prawdopodobieństwo taniej energii"
+      },
+      "forecast_accuracy": {
+        "name": "Dokładność prognoz"
+      },
+      "forecast_confidence": {
+        "name": "Pewność prognozy"
+      },
+      "pstryk_api_status": {
+        "name": "Status API Pstryk",
+        "state": {
+          "ok": "OK",
+          "pending": "Oczekiwanie",
+          "error": "Błąd",
+          "auth_error": "Błąd autoryzacji",
+          "rate_limited": "Limit zapytań",
+          "disabled": "Wyłączone",
+          "disconnected": "Rozłączono",
+          "not_configured": "Nieskonfigurowane"
+        }
+      },
+      "market_data_status": {
+        "name": "Status danych TGE",
+        "state": {
+          "ok": "OK",
+          "pending": "Oczekiwanie",
+          "error": "Błąd",
+          "auth_error": "Błąd autoryzacji",
+          "rate_limited": "Limit zapytań",
+          "disabled": "Wyłączone",
+          "disconnected": "Rozłączono",
+          "not_configured": "Nieskonfigurowane"
+        }
+      },
+      "mqtt_status": {
+        "name": "Status MQTT",
+        "state": {
+          "ok": "OK",
+          "pending": "Oczekiwanie",
+          "error": "Błąd",
+          "auth_error": "Błąd autoryzacji",
+          "rate_limited": "Limit zapytań",
+          "disabled": "Wyłączone",
+          "disconnected": "Rozłączono",
+          "not_configured": "Nieskonfigurowane"
+        }
+      },
+      "last_update": {
+        "name": "Czas ostatniej aktualizacji"
+      },
+      "buffer_target_temperature": {
+        "name": "Zalecana temperatura bufora"
+      },
+      "buffer_next_window": {
+        "name": "Następne okno grzania"
+      },
+      "buffer_expected_cost": {
+        "name": "Prognozowany koszt ogrzewania"
+      },
+      "buffer_savings": {
+        "name": "Szacowane oszczędności"
+      },
+      "buffer_plan_reason": {
+        "name": "Uzasadnienie planu bufora"
+      },
+      "energy_import_today": {
+        "name": "Zużycie energii dzisiaj"
+      },
+      "energy_export_today": {
+        "name": "Oddanie energii dzisiaj"
+      },
+      "energy_balance_today": {
+        "name": "Bilans energii dzisiaj"
+      },
+      "cost_today": {
+        "name": "Koszt energii dzisiaj"
+      },
+      "sold_value_today": {
+        "name": "Wartość sprzedanej energii dzisiaj"
+      },
+      "balance_today": {
+        "name": "Saldo finansowe dzisiaj"
+      },
+      "energy_import_month": {
+        "name": "Zużycie energii w tym miesiącu"
+      },
+      "energy_export_month": {
+        "name": "Oddanie energii w tym miesiącu"
+      },
+      "energy_balance_month": {
+        "name": "Bilans energii w tym miesiącu"
+      },
+      "cost_month": {
+        "name": "Koszt energii w tym miesiącu"
+      },
+      "balance_month": {
+        "name": "Saldo finansowe w tym miesiącu"
+      },
+      "device_schedule": {
+        "name": "Harmonogram: {name}"
+      }
+    },
+    "binary_sensor": {
+      "cheap_now": {
+        "name": "Tania energia teraz"
+      },
+      "expensive_now": {
+        "name": "Droga energia teraz"
+      },
+      "pstryk_cheap_hour": {
+        "name": "Tania godzina wg Pstryk"
+      },
+      "tomorrow_confirmed": {
+        "name": "Ceny na jutro potwierdzone"
+      },
+      "buffer_should_heat": {
+        "name": "Zalecane grzanie bufora"
+      }
+    },
+    "switch": {
+      "optimization_enabled": {
+        "name": "Optymalizacja"
+      },
+      "buffer_enabled": {
+        "name": "Optymalizacja bufora"
+      },
+      "mqtt_enabled": {
+        "name": "Publikacja MQTT"
+      },
+      "advisory_mode": {
+        "name": "Tryb doradczy"
+      }
+    },
+    "button": {
+      "recalculate_forecast": {
+        "name": "Przelicz prognozę"
+      },
+      "recalculate_schedule": {
+        "name": "Przelicz harmonogram"
+      },
+      "retrain_model": {
+        "name": "Trenuj model prognozy"
+      },
+      "import_history": {
+        "name": "Importuj dane historyczne"
+      }
+    },
+    "number": {
+      "buffer_max_t": {
+        "name": "Maksymalna temperatura bufora"
+      },
+      "buffer_min_t": {
+        "name": "Minimalna temperatura bufora"
+      },
+      "price_threshold": {
+        "name": "Próg ceny"
+      },
+      "cheap_hours": {
+        "name": "Liczba najtańszych godzin"
+      }
+    },
+    "select": {
+      "forecast_model": {
+        "name": "Model prognozy",
+        "state": {
+          "auto": "Automatyczny (zespół)",
+          "baseline": "Bazowy sezonowy",
+          "ridge": "Regresja grzbietowa"
+        }
+      },
+      "buffer_strategy": {
+        "name": "Strategia bufora",
+        "state": {
+          "min_cost": "Minimalny koszt",
+          "comfort": "Komfort"
+        }
+      }
+    }
+  },
+  "issues": {
+    "pstryk_auth_failed": {
+      "title": "Klucz API Pstryk odrzucony",
+      "description": "Pstryk odrzucił klucz API. Ponownie uwierzytelnij integrację."
+    },
+    "entsoe_auth_failed": {
+      "title": "Token ENTSO-E odrzucony",
+      "description": "Zaktualizuj token ENTSO-E w opcjach integracji."
+    }
+  },
+  "exceptions": {
+    "no_entry": {
+      "message": "Brak załadowanego wpisu Pstryk AI"
+    }
+  },
+  "services": {
+    "recalculate_forecast": {
+      "name": "Przelicz prognozę",
+      "description": "Przelicza 168-godzinną prognozę i harmonogramy.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wpis konfiguracji",
+          "description": "Ogranicz do jednego wpisu"
+        }
+      }
+    },
+    "recalculate_schedule": {
+      "name": "Przelicz harmonogram",
+      "description": "Przelicza harmonogramy z bieżącą prognozą.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wpis konfiguracji",
+          "description": "Ogranicz do jednego wpisu"
+        }
+      }
+    },
+    "retrain_model": {
+      "name": "Trenuj model",
+      "description": "Trenuje modele prognozy i ponawia test historyczny.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wpis konfiguracji",
+          "description": "Ogranicz do jednego wpisu"
+        }
+      }
+    },
+    "run_backtest": {
+      "name": "Uruchom test historyczny",
+      "description": "Ponawia test historyczny (z ponownym trenowaniem).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wpis konfiguracji",
+          "description": "Ogranicz do jednego wpisu"
+        }
+      }
+    },
+    "import_history": {
+      "name": "Importuj historię",
+      "description": "Importuje publiczne dane rynkowe, systemowe i pogodowe.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Wpis konfiguracji",
+          "description": "Ogranicz do jednego wpisu"
+        },
+        "days": {
+          "name": "Dni",
+          "description": "Liczba dni do importu"
+        }
+      }
+    }
+  }
+}
