@@ -44,6 +44,10 @@ class ProviderDataError(ProviderError):
     """Unexpected or malformed payload."""
 
 
+class ProviderNotFound(ProviderDataError):
+    """HTTP 404 – for Pstryk: meter missing, not authorised or no active contract."""
+
+
 def parse_retry_after(value: str | None, now: datetime | None = None) -> float | None:
     """Parse a Retry-After header (seconds or HTTP date) into seconds."""
     if not value:
@@ -158,6 +162,8 @@ async def request_json(
                     )
                 if resp.status >= 500:
                     raise ProviderUnavailable(f"{provider}: HTTP {resp.status}")
+                if resp.status == 404:
+                    raise ProviderNotFound(f"{provider}: HTTP 404 (not found / no active contract)")
                 if resp.status >= 400:
                     body = (await resp.text())[:300]
                     raise ProviderDataError(f"{provider}: HTTP {resp.status}: {body}")

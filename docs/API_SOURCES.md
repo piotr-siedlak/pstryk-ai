@@ -8,6 +8,17 @@
 | TGE RDN website | Fixing I/II prices (experimental, opt-in) | public HTML | Check TGE terms before enabling; no redistribution; minimal requests. |
 | Open-Meteo | local and national weather, historical forecasts | public | Non-commercial use free; attribution “Weather data by Open-Meteo.com” (CC BY 4.0). Models: ECMWF, DWD ICON, NOAA GFS. |
 
+## Live verification (2026-10-17)
+
+| Source | Result |
+|---|---|
+| Pstryk OpenAPI schema (`/integrations/schema/`) | unchanged; only `unified-metrics` documented; invalid key → HTTP 403 (handled as auth error), 404 → “no active contract” |
+| Pstryk pricing fields (`price_gross`, `price_prosumer_gross`, `is_cheap`, `is_expensive`) | **not in the official schema** – confirmed only by community integrations; needs a check with a real key (the parser treats them as optional and reports seen fields in diagnostics) |
+| PSE `pk5l-wp`, `rce-pln`, `his-wlk-cal` | live data parsed; plan covers ≈ 8 days ahead |
+| Open-Meteo forecast (ECMWF, ICON, GFS, best match), historical forecast | live data parsed, no missing variables |
+| ENTSO-E | endpoint live; invalid token → 401 handled; real A44 document not tested (no token) |
+| TGE RDN page | live table parsed: 24 hourly + 96 quarter-hour prices for Fixing I and II; hourly Fixing I = mean of the 4 quarters |
+
 ## What is stored locally (`.storage/pstryk_ai.<entry>.*`)
 * market: hourly market prices per provider (configurable history, default 365 days + margin), last 3 days of 15-minute points;
 * system: PSE plan values; weather: national weather features (archived forecasts);

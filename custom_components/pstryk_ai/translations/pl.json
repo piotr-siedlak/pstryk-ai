@@ -115,6 +115,7 @@
     "error": {
       "invalid_auth": "Nieprawidłowy klucz API",
       "cannot_connect": "Brak połączenia z Pstryk",
+      "no_contract": "Pstryk nie znalazł licznika ani aktywnej umowy dla tego klucza",
       "rate_limited": "Osiągnięto limit zapytań Pstryk – spróbuj za godzinę",
       "invalid_entsoe": "Token ENTSO-E odrzucony",
       "entsoe_token_required": "To źródło wymaga tokenu ENTSO-E",
@@ -244,6 +245,7 @@
     "error": {
       "invalid_auth": "Nieprawidłowy klucz API",
       "cannot_connect": "Brak połączenia z Pstryk",
+      "no_contract": "Pstryk nie znalazł licznika ani aktywnej umowy dla tego klucza",
       "rate_limited": "Osiągnięto limit zapytań Pstryk – spróbuj za godzinę",
       "invalid_entsoe": "Token ENTSO-E odrzucony",
       "entsoe_token_required": "To źródło wymaga tokenu ENTSO-E",

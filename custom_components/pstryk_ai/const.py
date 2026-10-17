@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "pstryk_ai"
 NAME: Final = "Pstryk AI"
 MANUFACTURER: Final = "Pstryk AI (community)"
-VERSION: Final = "0.1.0"
+VERSION: Final = "0.1.1"
 
 LOCAL_TZ: Final = "Europe/Warsaw"
 

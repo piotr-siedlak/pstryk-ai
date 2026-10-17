@@ -2,6 +2,15 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] – 2026-10-17
+### Fixed
+- Pstryk HTTP 404 (meter missing / no active contract) now shows a dedicated setup error instead of "cannot connect".
+- MQTT publishing on Home Assistant releases without MQTT v5 message expiry (2026.2).
+- Config-flow descriptions accepted by hassfest; tests independent of time of day.
+
+### Verified
+- Live API re-check on 2026-10-17 (see docs/API_SOURCES.md).
+
 ## [0.1.0] – 2026-10-16
 ### Added
 - Pstryk `unified-metrics` client: buy/sell prices, Pstryk cheap/expensive flags, meter values, costs, daily/monthly balances;

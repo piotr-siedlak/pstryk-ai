@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/piotr-siedlak/pstryk-ai/issues",
   "loggers": ["custom_components.pstryk_ai"],
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.1.1"
 }

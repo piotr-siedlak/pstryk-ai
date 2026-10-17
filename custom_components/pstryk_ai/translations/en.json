@@ -115,6 +115,7 @@
     "error": {
       "invalid_auth": "Invalid API key",
       "cannot_connect": "Cannot connect to Pstryk",
+      "no_contract": "Pstryk found no meter or active contract for this key",
       "rate_limited": "Pstryk rate limit reached – try again in an hour",
       "invalid_entsoe": "ENTSO-E token rejected",
       "entsoe_token_required": "ENTSO-E token required for this source",
@@ -244,6 +245,7 @@
     "error": {
       "invalid_auth": "Invalid API key",
       "cannot_connect": "Cannot connect to Pstryk",
+      "no_contract": "Pstryk found no meter or active contract for this key",
       "rate_limited": "Pstryk rate limit reached – try again in an hour",
       "invalid_entsoe": "ENTSO-E token rejected",
       "entsoe_token_required": "ENTSO-E token required for this source",
