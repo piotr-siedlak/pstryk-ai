@@ -209,6 +209,7 @@ class BufferPlan:
     soc_pct: float | None = None
     stored_energy_kwh: float | None = None
     fuel_cost_pln: float = 0.0
+    hp_modulation_pct: int = 0
 
     def to_dict(self, include_steps: bool = True) -> dict[str, Any]:
         data = {
@@ -235,6 +236,7 @@ class BufferPlan:
             "soc_pct": None if self.soc_pct is None else round(self.soc_pct, 1),
             "stored_energy_kwh": None if self.stored_energy_kwh is None else round(self.stored_energy_kwh, 2),
             "fuel_cost_pln": round(self.fuel_cost_pln, 3),
+            "hp_modulation_pct": self.hp_modulation_pct,
         }
         if include_steps:
             data["schedule"] = [s.to_dict() for s in self.steps]

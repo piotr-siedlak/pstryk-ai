@@ -82,6 +82,7 @@
           "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
           "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
           "heat_pump_max_supply_temperature": "Heat pump maximum supply temperature",
+          "heat_pump_min_modulation": "Heat pump minimum modulation (100 % = on/off compressor)",
           "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
           "buffer_capacity_liters": "Buffer volume",
           "buffer_min_temperature": "Minimum buffer temperature",
@@ -244,6 +245,7 @@
           "outdoor_temperature_topic": "Outdoor temperature – MQTT topic (optional)",
           "outdoor_temperature_json_key": "Outdoor temperature – JSON key (optional)",
           "heat_pump_max_supply_temperature": "Heat pump maximum supply temperature",
+          "heat_pump_min_modulation": "Heat pump minimum modulation (100 % = on/off compressor)",
           "mqtt_input_max_age_minutes": "Treat MQTT readings older than this as missing",
           "buffer_capacity_liters": "Buffer volume",
           "buffer_min_temperature": "Minimum buffer temperature",
@@ -443,7 +445,9 @@
           "topic_spends_summary": "spends/summary",
           "topic_spends_daily": "spends/daily",
           "topic_spends_monthly": "spends/monthly",
-          "topic_heartbeat": "heartbeat"
+          "topic_heartbeat": "heartbeat",
+          "topic_optimizer_buffer_hp_modulation": "optimizer/buffer/hp_modulation",
+          "topic_optimizer_dhw_hp_modulation": "optimizer/dhw/hp_modulation"
         }
       },
       "panel": {

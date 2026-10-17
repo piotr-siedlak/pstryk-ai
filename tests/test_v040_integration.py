@@ -131,6 +131,10 @@ async def test_all_features_on(hass: HomeAssistant, aioclient_mock: AiohttpClien
     assert hass.states.get("binary_sensor.pstryk_ai_dhw_should_heat").state in ("on", "off")
     assert hass.states.get("sensor.pstryk_ai_valve_position").state in ("buffer", "dhw", "idle")
     assert hass.states.get("sensor.pstryk_ai_distribution_zone").state in ("peak", "offpeak")
+    zone_rate = {"peak": 0.35, "offpeak": 0.08}[hass.states.get("sensor.pstryk_ai_distribution_zone").state] * 1.23
+    all_in = float(hass.states.get("sensor.pstryk_ai_current_all_in_price").state)
+    buy = float(hass.states.get("sensor.pstryk_ai_current_buy_price").state)
+    assert all_in == pytest.approx(buy + zone_rate, abs=0.002)  # time-of-use distribution applied
     assert hass.states.get("sensor.pstryk_ai_pv_production_today") is not None
     assert hass.states.get("switch.pstryk_ai_dhw_enabled").state == "on"
     assert hass.states.get("switch.pstryk_ai_optimize_all_in").state == "on"

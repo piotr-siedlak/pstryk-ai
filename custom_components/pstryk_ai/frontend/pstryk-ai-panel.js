@@ -196,9 +196,12 @@ class PstrykAIPanel extends HTMLElement {
 
   // ------------------------------------------------------------ "now" card
   _level(value) {
-    const today = (this._attr("average_today", "prices") || []).map((p) => num(p.value)).filter((v) => v !== null);
-    if (value === null || today.length < 4) return { label: "", cls: "" };
-    const sorted = [...today].sort((a, b) => a - b);
+    // same reference as "Tania energia teraz": the next 24 hours (not the past hours of today)
+    const series = this._attr("forecast_7d", "series") || {};
+    let ref = (series.value || []).slice(0, 24).map(num).filter((v) => v !== null);
+    if (ref.length < 4) ref = (this._attr("average_today", "prices") || []).map((p) => num(p.value)).filter((v) => v !== null);
+    if (value === null || ref.length < 4) return { label: "", cls: "" };
+    const sorted = [...ref].sort((a, b) => a - b);
     const q = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))];
     if (value <= q(0.25)) return { label: "Tanio", cls: "lvl-cheap" };
     if (value >= q(0.75)) return { label: "Drogo", cls: "lvl-exp" };
@@ -225,7 +228,9 @@ class PstrykAIPanel extends HTMLElement {
       </div>
       <div class="kv">
         <div><span>Następna godzina</span><b>${fmt(nextVal)} ${trend}</b><small>${esc(SOURCE[next?.attributes?.source]?.short || "")}</small></div>
-        <div><span>Z dystrybucją</span><b>${fmt(allIn)}</b><small>szacunek</small></div>
+        <div><span>Z dystrybucją</span><b>${fmt(allIn)}</b><small>${
+          num(this._attr("current_all_in_price", "distribution_gross")) ? "szacunek" : "brak stawki dystrybucji – ustaw w opcjach"
+        }</small></div>
         ${sell !== null ? `<div><span>Sprzedaż</span><b>${fmt(sell)}</b><small>prosument</small></div>` : ""}
       </div>
       <div class="chips">
@@ -274,7 +279,8 @@ class PstrykAIPanel extends HTMLElement {
     const soc = num(plan.soc_pct ?? this._val(isDhw ? "dhw_soc" : "buffer_soc"));
     const valve = this._st("valve_position");
     const valveLabel = { buffer: "pompa → bufor", dhw: "pompa → CWU", idle: "pompa – postój" }[valve?.state];
-    let title2 = on ? "Grzej teraz" : "Nie grzej teraz";
+    const mod = num(plan.hp_modulation_pct);
+    let title2 = on ? (mod && mod < 99 ? `Grzej teraz – moc ${mod}%` : "Grzej teraz") : "Nie grzej teraz";
     let icon = on ? "🔥" : "⏸";
     if (heaterOn && on) { title2 = `Pompa + grzałka ${fmt(heaterKw, 1)} kW`; icon = "🔥⚡"; }
     else if (heaterOn) { title2 = `Grzałka teraz ${fmt(heaterKw, 1)} kW`; icon = "⚡"; }
@@ -293,10 +299,12 @@ class PstrykAIPanel extends HTMLElement {
           <div class="kv">
             <div data-more="${esc(topS?.entity_id || "")}"><span>${bottom !== null ? "Średnio" : "Teraz"}</span><b>${fmt(current, 1)} °C</b><small>${esc(srcLabel)}</small></div>
             <div><span>Cel</span><b>${fmt(planSensor?.state, 1)} °C</b></div>
-            <div><span>Następne grzanie</span><b>${esc(plan.recommended_start ? this._dayTime(plan.recommended_start) : "–")}</b>
+            <div><span>${on || heaterOn ? "Grzanie" : "Następne grzanie"}</span><b>${esc(
+              plan.recommended_start ? (Date.parse(plan.recommended_start) <= Date.now() ? "teraz" : this._dayTime(plan.recommended_start)) : "–"
+            )}</b>
               <small>${plan.recommended_stop ? `do ${esc(this._time(plan.recommended_stop))}` : ""}</small></div>
             <div><span>Koszt 24 h</span><b>${fmt(plan.expected_cost_pln, 2)} zł</b>${num(plan.fuel_cost_pln) ? `<small>w tym gaz ${fmt(plan.fuel_cost_pln, 2)} zł</small>` : ""}</div>
-            <div><span>Oszczędność</span><b>${fmt(plan.expected_savings_pln, 2)} zł</b><small>vs termostat</small></div>
+            <div><span>Oszczędność</span><b>${fmt(plan.expected_savings_pln, 2)} zł</b><small>vs termostat (to samo minimum)</small></div>
             ${plan.heater_next_start ? `<div><span>Grzałka</span><b>${esc(this._dayTime(plan.heater_next_start))}</b></div>` : ""}
             ${leg ? `<div data-more="${esc(leg.entity_id)}"><span>Antylegionella</span><b>${esc(leg.state && leg.state !== "unknown" ? this._dayTime(leg.state) : "–")}</b>
               <small>${leg.attributes?.planned_at ? `plan: ${esc(this._dayTime(leg.attributes.planned_at))}` : ""}</small></div>` : ""}

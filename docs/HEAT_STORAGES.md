@@ -17,6 +17,13 @@ switch entity. A feature switched off in the options cannot be switched on by it
 * Without a bottom sensor the top temperature is used as before.
 * Upgrading from ≤ 0.3: the existing buffer topic/entity/JSON key are moved automatically to the *top* options (config entry 1.1 → 1.2).
 
+### Heat-pump modulation and comfort (v0.4.1)
+* *Minimalna modulacja pompy ciepła* (default 30 %): the plan may run the heat pump at 30 / 65 / 100 % power. At expensive hours it
+  delivers only the heat needed to hold the minimum and charges the storage when energy is cheap. Set 100 % for an on/off compressor.
+* The minimum temperature is treated as a near-hard limit; the comfort strategy makes it stricter.
+* The recommended power is published on `optimizer/buffer/hp_modulation` (and `optimizer/dhw/hp_modulation`).
+* "Oszczędność" compares with an on/off thermostat that keeps the same minimum (min + 1 K … min + 6 K).
+
 ## 2. Auxiliary heater (electric or gas)
 *Configure → Buffer heater* and *Configure → CWU heater*
 

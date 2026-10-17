@@ -2,6 +2,26 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] – 2026-10-17
+Fixes found by analysing a real panel screenshot (buffer at 7 %, 21:00, price 1.239 zł "Drogo", plan: "Grzej teraz").
+### Fixed
+- **Heat-pump modulation**: the optimiser only knew on/off at full power, so holding the minimum at an expensive hour meant buying a
+  full 9 kW hour (overshoot to ~44 °C) and 1-hour bursts every 3–4 h at ~1.05–1.24 zł. New option *Minimalna modulacja pompy ciepła*
+  (default 30 %, 100 % = on/off): power levels 30/65/100 %. In the screenshot scenario the 24 h cost drops from 23.73 zł to 17.44 zł.
+- **Minimum temperature is now near-hard** (penalty 30 zł/K·h, comfort strategy 100): the plan no longer lets the buffer fall below the
+  minimum to wait for a slightly cheaper hour.
+- **Truthful recommendation reasons**: "Grzanie konieczne – … spadek poniżej minimum …; cena wysoka – tylko tyle, ile trzeba",
+  "Tania energia teraz – ładowanie ciepła na później", "Ładowanie przed droższymi godzinami (od HH:MM)" – instead of always
+  "najniższy koszt ciepła w horyzoncie"; includes the modulation level.
+- **Fair savings**: compared with an on/off thermostat that keeps the **same minimum** (was: a thermostat holding the target, which
+  inflated savings – the old on/off plan was in fact 4.77 zł worse than a simple thermostat).
+- Heat-pump efficiency is computed from the **bottom** layer (the water the heat pump heats) when a bottom sensor exists.
+- *Aktualna cena całkowita (z dystrybucją)* now applies the current G12/G13 zone.
+- Panel: price level ("Tanio/Średnio/Drogo") is computed from the next 24 h (same as *Tania energia teraz*); "Z dystrybucją" says when
+  no distribution rate is set; "Grzanie: teraz" when heating now; "Grzej teraz – moc 30%".
+### Added
+- MQTT `optimizer/buffer/hp_modulation`, `optimizer/dhw/hp_modulation` (recommended heat-pump power %, not retained).
+
 ## [0.4.0] – 2026-10-17
 All new features are optional and switchable (options; most also with runtime switches).
 ### Added

@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "pstryk_ai"
 NAME: Final = "Pstryk AI"
 MANUFACTURER: Final = "Pstryk AI (community)"
-VERSION: Final = "0.4.0"
+VERSION: Final = "0.4.1"
 
 LOCAL_TZ: Final = "Europe/Warsaw"
 
@@ -175,6 +175,8 @@ CONF_BUFFER_BOTTOM_TOPIC: Final = "buffer_bottom_topic"
 CONF_BUFFER_BOTTOM_KEY: Final = "buffer_bottom_json_key"
 CONF_BUFFER_BOTTOM_ENTITY: Final = "buffer_bottom_entity"
 CONF_HP_MAX_T: Final = "heat_pump_max_supply_temperature"
+CONF_HP_MIN_MODULATION: Final = "heat_pump_min_modulation"
+DEFAULT_HP_MIN_MODULATION: Final = 30
 
 # Heaters: f"{prefix}_heater_<field>" with prefix "buffer" or "dhw"
 HEATER_FIELDS: Final = (

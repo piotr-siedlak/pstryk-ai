@@ -38,6 +38,7 @@ from .const import (
     CONF_DIST_WEEKEND_OFFPEAK,
     CONF_HEARTBEAT,
     CONF_HP_MAX_T,
+    CONF_HP_MIN_MODULATION,
     CONF_HP_POWER_ENTITY,
     CONF_HP_POWER_KEY,
     CONF_HP_POWER_TOPIC,
@@ -63,6 +64,7 @@ from .const import (
     CONF_SPENDS_ENABLED,
     CONF_SPENDS_HISTORY,
     CONF_STATISTICS_IMPORT,
+    DEFAULT_HP_MIN_MODULATION,
     DHW_HP_VALVE,
     HEATER_KIND_ELECTRIC,
 )
@@ -128,6 +130,7 @@ class DhwSettings:
 class ExtSettings:
     buffer_bottom: SensorSource = field(default_factory=SensorSource)
     hp_max_t: float = 55.0
+    hp_levels: tuple[float, ...] = (0.3, 0.65, 1.0)
     buffer_heater: HeaterSettings = field(default_factory=HeaterSettings)
     dhw: DhwSettings = field(default_factory=DhwSettings)
     dhw_heater: HeaterSettings = field(default_factory=HeaterSettings)
@@ -183,6 +186,14 @@ def parse_steps(text: Any) -> list[float]:
         if v > 0:
             out.append(v)
     return sorted(set(out))
+
+
+def hp_levels(min_modulation_pct: float) -> tuple[float, ...]:
+    """Power levels for an inverter heat pump; 100 % = on/off compressor."""
+    low = max(5.0, min(100.0, min_modulation_pct)) / 100
+    if low >= 0.99:
+        return (1.0,)
+    return tuple(sorted({round(low, 2), round((low + 1) / 2, 2), 1.0}))
 
 
 def load_heater(c: dict[str, Any], prefix: str) -> HeaterSettings:
@@ -248,6 +259,7 @@ def load_ext(c: dict[str, Any]) -> ExtSettings:
             _s(c, CONF_BUFFER_BOTTOM_TOPIC), _s(c, CONF_BUFFER_BOTTOM_KEY), _s(c, CONF_BUFFER_BOTTOM_ENTITY)
         ),
         hp_max_t=_f(c, CONF_HP_MAX_T, 55.0),
+        hp_levels=hp_levels(_f(c, CONF_HP_MIN_MODULATION, DEFAULT_HP_MIN_MODULATION)),
         buffer_heater=load_heater(c, "buffer"),
         dhw=dhw,
         dhw_heater=load_heater(c, "dhw"),

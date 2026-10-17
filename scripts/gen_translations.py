@@ -307,6 +307,8 @@ TOPICS = [
     "spends/daily",
     "spends/monthly",
     "heartbeat",
+    "optimizer/buffer/hp_modulation",
+    "optimizer/dhw/hp_modulation",
 ]
 
 STEPS = {
@@ -714,6 +716,10 @@ FIELDS.update(
         ),
     }
 )
+FIELDS["heat_pump_min_modulation"] = (
+    "Heat pump minimum modulation (100 % = on/off compressor)",
+    "Minimalna modulacja pompy ciepła (100 % = sprężarka wł./wył.)",
+)
 STEP_FIELDS["pstryk"] = STEP_FIELDS["pstryk"] + ["pstryk_spends", "pstryk_monthly_history", "pstryk_statistics_import"]
 STEP_FIELDS["user"] = STEP_FIELDS["user"] + ["pstryk_spends", "pstryk_monthly_history", "pstryk_statistics_import"]
 STEP_FIELDS["buffer"] = [
@@ -728,6 +734,7 @@ STEP_FIELDS["buffer"] = [
     "outdoor_temperature_topic",
     "outdoor_temperature_json_key",
     "heat_pump_max_supply_temperature",
+    "heat_pump_min_modulation",
     "mqtt_input_max_age_minutes",
 ] + [
     f

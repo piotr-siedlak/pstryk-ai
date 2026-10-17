@@ -81,6 +81,7 @@ from .const import (
     CONF_HP_COP_CURVE,
     CONF_HP_ELECTRIC_KW,
     CONF_HP_MAX_T,
+    CONF_HP_MIN_MODULATION,
     CONF_HP_POWER_ENTITY,
     CONF_HP_POWER_KEY,
     CONF_HP_POWER_TOPIC,
@@ -152,6 +153,7 @@ from .const import (
     DEFAULT_HORIZON_H,
     DEFAULT_HP_COP,
     DEFAULT_HP_ELECTRIC_KW,
+    DEFAULT_HP_MIN_MODULATION,
     DEFAULT_HP_THERMAL_KW,
     DEFAULT_INDOOR_BASE_T,
     DEFAULT_INPUT_MAX_AGE_MIN,
@@ -326,6 +328,9 @@ def schema_buffer(v: Mapping[str, Any]) -> vol.Schema:
     for key in BUFFER_TEXT_KEYS:
         fields[vol.Optional(key, description={"suggested_value": v.get(key) or ""})] = selector.TextSelector()
     fields[vol.Required(CONF_HP_MAX_T, default=_d(v, CONF_HP_MAX_T, 55.0))] = _num(30, 80, 0.5, "°C")
+    fields[vol.Required(CONF_HP_MIN_MODULATION, default=_d(v, CONF_HP_MIN_MODULATION, DEFAULT_HP_MIN_MODULATION))] = (
+        _num(10, 100, 5, "%")
+    )
     fields[vol.Required(CONF_INPUT_MAX_AGE_MIN, default=_d(v, CONF_INPUT_MAX_AGE_MIN, DEFAULT_INPUT_MAX_AGE_MIN))] = (
         _num(2, 720, 1, "min")
     )
