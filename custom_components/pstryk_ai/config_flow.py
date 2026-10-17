@@ -21,6 +21,7 @@ from .api.pse import PseClient
 from .api.pstryk import PstrykClient, key_fingerprint
 from .api.weather import WeatherClient
 from .const import (
+    BOOST_FORMATS,
     BUFFER_STRATEGIES,
     BUFFER_STRATEGY_COST,
     COMMAND_BINARY,
@@ -29,6 +30,10 @@ from .const import (
     CONF_AUTO_CALIBRATE_TARIFF,
     CONF_AUTO_RETRAIN,
     CONF_BASE_LOAD_KW,
+    CONF_BOOST_FORMAT,
+    CONF_BOOST_SHARE,
+    CONF_BOOST_T,
+    CONF_BOOST_TOPIC,
     CONF_BUFFER_BOTTOM_ENTITY,
     CONF_BUFFER_BOTTOM_KEY,
     CONF_BUFFER_BOTTOM_TOPIC,
@@ -43,6 +48,8 @@ from .const import (
     CONF_BUFFER_VOLUME_L,
     CONF_CHEAP_HOURS,
     CONF_DEVICE_PROFILES,
+    CONF_DHW_BOOST_T,
+    CONF_DHW_BOOST_TOPIC,
     CONF_DHW_BOTTOM_ENTITY,
     CONF_DHW_BOTTOM_KEY,
     CONF_DHW_BOTTOM_TOPIC,
@@ -85,6 +92,7 @@ from .const import (
     CONF_HP_POWER_ENTITY,
     CONF_HP_POWER_KEY,
     CONF_HP_POWER_TOPIC,
+    CONF_HP_STRATEGY,
     CONF_HP_THERMAL_KW,
     CONF_INDOOR_BASE_T,
     CONF_INPUT_MAX_AGE_MIN,
@@ -140,6 +148,8 @@ from .const import (
     CONF_VAT_RATE,
     CONF_WEATHER_MODEL,
     CONF_WEATHER_REFRESH_H,
+    DEFAULT_BOOST_SHARE,
+    DEFAULT_BOOST_T,
     DEFAULT_BUFFER_MAX_T,
     DEFAULT_BUFFER_MIN_T,
     DEFAULT_BUFFER_TARGET_T,
@@ -177,6 +187,8 @@ from .const import (
     FORECAST_MODELS,
     HEATER_KIND_ELECTRIC,
     HEATER_KINDS,
+    HP_STRATEGIES,
+    HP_STRATEGY_BOOST,
     MARKET_PROVIDER_ENTSOE,
     MARKET_PROVIDERS,
     NAME,
@@ -327,6 +339,15 @@ def schema_buffer(v: Mapping[str, Any]) -> vol.Schema:
         fields[vol.Optional(key, description={"suggested_value": v.get(key) or None})] = temp_sel
     for key in BUFFER_TEXT_KEYS:
         fields[vol.Optional(key, description={"suggested_value": v.get(key) or ""})] = selector.TextSelector()
+    fields[vol.Required(CONF_HP_STRATEGY, default=_d(v, CONF_HP_STRATEGY, HP_STRATEGY_BOOST))] = _sel(
+        HP_STRATEGIES, "heat_pump_strategy"
+    )
+    fields[vol.Required(CONF_BOOST_T, default=_d(v, CONF_BOOST_T, DEFAULT_BOOST_T))] = _num(30, 80, 0.5, "°C")
+    fields[vol.Required(CONF_BOOST_SHARE, default=_d(v, CONF_BOOST_SHARE, DEFAULT_BOOST_SHARE))] = _num(5, 100, 5, "%")
+    fields[_text(v, CONF_BOOST_TOPIC)] = selector.TextSelector()
+    fields[vol.Required(CONF_BOOST_FORMAT, default=_d(v, CONF_BOOST_FORMAT, BOOST_FORMATS[0]))] = _sel(
+        BOOST_FORMATS, "boost_command_format"
+    )
     fields[vol.Required(CONF_HP_MAX_T, default=_d(v, CONF_HP_MAX_T, 55.0))] = _num(30, 80, 0.5, "°C")
     fields[vol.Required(CONF_HP_MIN_MODULATION, default=_d(v, CONF_HP_MIN_MODULATION, DEFAULT_HP_MIN_MODULATION))] = (
         _num(10, 100, 5, "%")
@@ -454,6 +475,8 @@ def schema_dhw(v: Mapping[str, Any]) -> vol.Schema:
             ),
             vol.Required(CONF_DHW_PRIORITY, default=_d(v, CONF_DHW_PRIORITY, True)): bool,
             _text(v, CONF_DHW_VALVE_TOPIC): selector.TextSelector(),
+            vol.Required(CONF_DHW_BOOST_T, default=_d(v, CONF_DHW_BOOST_T, DEFAULT_BOOST_T)): _num(30, 80, 0.5, "°C"),
+            _text(v, CONF_DHW_BOOST_TOPIC): selector.TextSelector(),
             vol.Required(CONF_LEGIONELLA_ENABLED, default=_d(v, CONF_LEGIONELLA_ENABLED, False)): bool,
             vol.Required(CONF_LEGIONELLA_T, default=_d(v, CONF_LEGIONELLA_T, 60.0)): _num(55, 80, 0.5, "°C"),
             vol.Required(CONF_LEGIONELLA_DAYS, default=_d(v, CONF_LEGIONELLA_DAYS, 7)): _num(1, 30, 1, "d"),
@@ -572,8 +595,8 @@ def validate_section(step: str, data: dict[str, Any]) -> dict[str, str]:
     if step == "buffer" and float(data.get(CONF_BUFFER_MIN_T, 0)) >= float(data.get(CONF_BUFFER_MAX_T, 100)):
         errors[CONF_BUFFER_MAX_T] = "invalid_temperature_range"
     topic_keys = {
-        "buffer": (CONF_BUFFER_TOP_TOPIC, CONF_BUFFER_BOTTOM_TOPIC, CONF_OUTDOOR_TEMP_TOPIC),
-        "dhw": (CONF_DHW_TOP_TOPIC, CONF_DHW_BOTTOM_TOPIC, CONF_DHW_VALVE_TOPIC),
+        "buffer": (CONF_BUFFER_TOP_TOPIC, CONF_BUFFER_BOTTOM_TOPIC, CONF_OUTDOOR_TEMP_TOPIC, CONF_BOOST_TOPIC),
+        "dhw": (CONF_DHW_TOP_TOPIC, CONF_DHW_BOTTOM_TOPIC, CONF_DHW_VALVE_TOPIC, CONF_DHW_BOOST_TOPIC),
         "buffer_heater": ("buffer_heater_command_topic", "buffer_heater_state_topic"),
         "dhw_heater": ("dhw_heater_command_topic", "dhw_heater_state_topic"),
         "power": (CONF_HP_POWER_TOPIC,),

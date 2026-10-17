@@ -74,6 +74,7 @@ CONTROL_KEYS = (
     "pv_enabled",
     "power_limit_enabled",
     "optimize_all_in",
+    "heat_pump_strategy",
 )
 
 
@@ -156,6 +157,7 @@ class PstrykAICoordinator(HeatRuntimeMixin, DataUpdateCoordinator[PstrykAIData])
             "pv_enabled": s.ext.pv_enabled,
             "power_limit_enabled": s.ext.power_limit_enabled,
             "optimize_all_in": s.ext.optimize_all_in,
+            "heat_pump_strategy": s.ext.hp_strategy,
         }
         self.snapshot: PstrykSnapshot = PstrykSnapshot()
         self.daily: list[MeterFrame] = []

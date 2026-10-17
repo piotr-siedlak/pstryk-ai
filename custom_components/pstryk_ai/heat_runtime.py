@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .const import COMMAND_POWER, DHW_HP_VALVE
+from .const import BOOST_FORMAT_SETPOINT, COMMAND_POWER, DHW_HP_VALVE, HP_STRATEGY_BOOST
 from .learning import HourSample, LearningStore, fit_cop_ratio, fit_draw_profile, fit_losses
 from .models.optimizer import BufferPlan
 from .models.price_slot import PriceSlot, PriceSource, floor_hour, iso
@@ -133,7 +133,7 @@ class HeatRuntimeMixin:
                 cfg.loss_kw_per_k = fit["loss_kw_per_k"]
             layers = self.storage_layers("buffer")
             cfg.stratification_k = layers["stratification"]
-            storages["buffer"] = StorageInput(cfg, layers["mean"])
+            storages["buffer"] = StorageInput(cfg, layers["mean"], **self._strategy_args(x.boost_t))
             if layers["mean"] is None:
                 reasons["buffer"] = (
                     f"Brak świeżego odczytu MQTT temperatury bufora (>{s.input_max_age_min} min) – sterowanie lokalne"
@@ -182,10 +182,15 @@ class HeatRuntimeMixin:
             )
             layers = self.storage_layers("dhw")
             cfg.stratification_k = layers["stratification"]
-            storages["dhw"] = StorageInput(cfg, layers["mean"])
+            storages["dhw"] = StorageInput(cfg, layers["mean"], **self._strategy_args(x.dhw_boost_t))
             if layers["mean"] is None:
                 reasons["dhw"] = "Brak odczytu temperatury CWU – sterowanie lokalne"
         return storages, reasons
+
+    def _strategy_args(self, boost_t: float) -> dict[str, Any]:
+        x = self.settings.ext
+        strategy = "boost" if self.controls.get("heat_pump_strategy", x.hp_strategy) == HP_STRATEGY_BOOST else "full"
+        return {"strategy": strategy, "boost_t": boost_t, "boost_percentile": x.boost_share}
 
     async def async_plan_heat(self, timeline: Timeline, now: datetime, schedules: list) -> HeatSystemPlan | None:
         storages, reasons = self._storage_configs(now)
@@ -390,7 +395,19 @@ class HeatRuntimeMixin:
             else:
                 payload = "1" if run else "0"
             out.append((heater.command_topic, payload))
-        if x.dhw.enabled and x.dhw.valve_topic and x.dhw.hp_mode == DHW_HP_VALVE:
+        for name, topic in (("buffer", x.boost_topic), ("dhw", x.dhw_boost_topic)):
+            p = plan.plans.get(name)
+            if p is None or not topic or p.strategy != "boost":
+                continue
+            run = p.mode == "control" and p.should_heat
+            if x.boost_format == BOOST_FORMAT_SETPOINT:
+                payload = f"{p.boost_target_t or 0:.1f}" if run else "0"
+            else:
+                payload = "1" if run else "0"
+            out.append((topic, payload))
+        full = any(p.strategy != "boost" for p in plan.plans.values())
+        # in boost mode the valve stays with the heat pump's own controller
+        if full and x.dhw.enabled and x.dhw.valve_topic and x.dhw.hp_mode == DHW_HP_VALVE:
             fallback = any(p.mode == "fallback" for p in plan.plans.values())
             out.append((x.dhw.valve_topic, "idle" if fallback else plan.valve_now))
         return out
@@ -410,7 +427,11 @@ class HeatRuntimeMixin:
                     Message(f"{base}/next_start", scalar(p.recommended_start)),
                     Message(f"{base}/schedule", _plan_json(p, now)),
                 ]
+            boost_now = p.strategy == "boost" and p.mode != "fallback" and p.should_heat
             msgs += [
+                Message(f"{base}/boost", scalar(boost_now), retain=False, expiry_s=expiry),
+                Message(f"{base}/boost_target", scalar(p.boost_target_t if boost_now else None)),
+                Message(f"{base}/strategy", p.strategy),
                 Message(f"{base}/hp_modulation", scalar(p.hp_modulation_pct), retain=False, expiry_s=expiry),
                 Message(f"{base}/heater/should_run", scalar(p.heater_should_run), retain=False, expiry_s=expiry),
                 Message(f"{base}/heater/power", scalar(round(p.heater_power_kw, 2))),

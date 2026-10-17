@@ -2,6 +2,24 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] – 2026-10-17
+### Added
+- **Heat-pump strategy** (option + runtime select *Strategia sterowania pompą*):
+  - **Tylko doładowanie** (`boost`, new default) – the heat pump runs on its own and holds its setpoint; Pstryk AI only recommends
+    **100 % boosts in cheap hours** (cheapest 40 % of the next 24 h or negative prices) up to the boost temperature, and only when the
+    stored heat is cheaper than the heat the pump would produce later (COP at the boost temperature included). Dynamic programme
+    over the storage temperature, honest reasons ("Doładowanie teraz – tania energia …", "Pompa pracuje samodzielnie – doładowanie od
+    HH:MM", "… doładowanie się nie opłaca w horyzoncie"), savings vs the heat pump alone.
+  - **Pełne sterowanie** (`full`) – the v0.4 hourly control with modulation.
+  - Options: boost temperature (buffer and CWU), cheap-hour share, boost command topic and format (`1/0` or setpoint °C).
+  - MQTT `optimizer/{buffer,dhw}/boost` (not retained, expiry), `…/boost_target`, `…/strategy`; boost commands only in control mode,
+    never retained; valve not commanded in boost mode; shared valve: only one storage boosts at a time.
+  - Panel: strategy chip, "Doładuj teraz – 100% do 55 °C" / "Pompa pracuje samodzielnie", boost lane on the timeline.
+- **7-day closed-loop simulation** (`optimization/simulation.py`, `scripts/simulate_week.py`, [docs/SIMULATION.md](docs/SIMULATION.md)):
+  real week 09–15.10.2026 – heat pump alone 103.73 zł, boost 91.19 zł (−12 %), full control 80.63 zł (−22 %), no hours below minimum.
+### Changed
+- New installations and existing ones without the option use **boost** – set *Pełne sterowanie* to keep the v0.4 behaviour.
+
 ## [0.4.1] – 2026-10-17
 Fixes found by analysing a real panel screenshot (buffer at 7 %, 21:00, price 1.239 zł "Drogo", plan: "Grzej teraz").
 ### Fixed

@@ -47,6 +47,7 @@ ALL_ON: dict[str, Any] = {
     "notify_tomorrow_prices": True,
     "notify_negative_prices": True,
     "mqtt_heartbeat": True,
+    "heat_pump_strategy": "full",  # this test covers full control; boost: test_v050_boost.py
 }
 
 

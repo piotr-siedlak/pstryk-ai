@@ -1,6 +1,6 @@
 [project]
 name = "pstryk-ai"
-version = "0.4.1"
+version = "0.5.0"
 description = "Pstryk AI – Energy Intelligence & Optimization for Home Assistant"
 readme = "README.md"
 license = { text = "MIT" }

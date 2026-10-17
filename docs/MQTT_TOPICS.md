@@ -33,6 +33,10 @@ Publication uses the broker configured in Home Assistant's MQTT integration. Pre
 | `optimizer/buffer/schedule` | JSON | yes | full plan incl. per-hour steps |
 | `optimizer/buffer/heater/should_run`, `optimizer/buffer/heater/power` | scalar | no / yes | buffer heater recommendation (kW) |
 | `optimizer/buffer/soc` | scalar % | yes | buffer charge |
+| `optimizer/buffer/hp_modulation` | scalar % | **no**, expiry | recommended heat-pump power (full control) / 100 during a boost |
+| `optimizer/buffer/boost`, `optimizer/dhw/boost` | scalar 1/0 | **no**, expiry | boost now: heat pump 100 % up to `boost_target` (strategy *Tylko doładowanie*) |
+| `optimizer/buffer/boost_target`, `optimizer/dhw/boost_target` | scalar °C | yes | boost temperature while boosting, empty otherwise |
+| `optimizer/buffer/strategy`, `optimizer/dhw/strategy` | `boost`/`full` | yes | active heat-pump strategy |
 | `optimizer/dhw/should_heat` | scalar 1/0 | **no**, expiry | hot-water heat-pump recommendation |
 | `optimizer/dhw/mode`, `target_temperature`, `next_start`, `schedule`, `soc` | scalar/JSON | yes | hot-water plan |
 | `optimizer/dhw/heater/should_run`, `optimizer/dhw/heater/power` | scalar | no / yes | hot-water heater |
@@ -51,7 +55,8 @@ Exact topics you set in the heater / CWU options. Published **only when advisory
 | Option | Payload |
 |---|---|
 | `buffer_heater_command_topic`, `dhw_heater_command_topic` | `1`/`0` or power in kW (`2.0`) depending on the command format; `0` in fallback |
-| `dhw_valve_command_topic` | `buffer`, `dhw` or `idle` (`idle` in fallback) |
+| `dhw_valve_command_topic` | `buffer`, `dhw` or `idle` (`idle` in fallback); not sent with strategy *Tylko doładowanie* |
+| `boost_command_topic`, `dhw_boost_command_topic` | `1`/`0` or setpoint °C (`55.0`/`0`); `0` in fallback or when no boost |
 
 ## Renaming or disabling topics
 *Settings → Devices & services → Pstryk AI → Configure → MQTT topics* lists all 46 topics. Each field is the topic name **relative to

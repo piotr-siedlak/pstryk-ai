@@ -24,6 +24,27 @@ switch entity. A feature switched off in the options cannot be switched on by it
 * The recommended power is published on `optimizer/buffer/hp_modulation` (and `optimizer/dhw/hp_modulation`).
 * "Oszczędność" compares with an on/off thermostat that keeps the same minimum (min + 1 K … min + 6 K).
 
+### Heat-pump strategy (v0.5.0)
+*Configure → Buffer → Strategia sterowania pompą*, also switchable at runtime with the select **Strategia sterowania pompą**:
+
+| Strategy | Behaviour |
+|---|---|
+| **Tylko doładowanie** (`boost`, default) | The heat pump keeps its own logic (thermostat / weather curve) and holds its setpoint (*Domyślna temperatura docelowa*). Pstryk AI only says *"now run at 100 % up to the boost temperature"* in cheap hours, when that heat is cheaper than what the heat pump would make on its own later (the lower COP at the higher temperature is included). |
+| **Pełne sterowanie** (`full`) | Pstryk AI plans every hour (on/off/modulation, heaters, valve) – v0.4 behaviour. |
+
+Boost options:
+
+| Option | Meaning |
+|---|---|
+| `boost_temperature` | boost up to this temperature (capped by the heat-pump maximum and the buffer maximum), default 55 °C |
+| `boost_cheap_share` | boosts only in the cheapest X % of the next 24 h (or at negative prices), default 40 % |
+| `boost_command_topic` | optional exact topic of your heat pump/Loxone; control mode only, never retained |
+| `boost_command_format` | `1`/`0` or the setpoint in °C (`55.0`, `0` = end of boost) |
+| `dhw_boost_temperature`, `dhw_boost_command_topic` | the same for the hot-water tank |
+
+In boost mode the binary sensor *Grzanie bufora zalecane* means "boost now", `optimizer/buffer/boost` = `1`, and the valve topic is
+not commanded (the heat pump's own controller switches it). Measured result on a real week: [SIMULATION.md](SIMULATION.md).
+
 ## 2. Auxiliary heater (electric or gas)
 *Configure → Buffer heater* and *Configure → CWU heater*
 

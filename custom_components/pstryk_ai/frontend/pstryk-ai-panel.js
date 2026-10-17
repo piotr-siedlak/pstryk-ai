@@ -280,14 +280,20 @@ class PstrykAIPanel extends HTMLElement {
     const valve = this._st("valve_position");
     const valveLabel = { buffer: "pompa → bufor", dhw: "pompa → CWU", idle: "pompa – postój" }[valve?.state];
     const mod = num(plan.hp_modulation_pct);
+    const boost = plan.strategy === "boost";
     let title2 = on ? (mod && mod < 99 ? `Grzej teraz – moc ${mod}%` : "Grzej teraz") : "Nie grzej teraz";
     let icon = on ? "🔥" : "⏸";
+    if (boost) {
+      title2 = on ? `Doładuj teraz – 100% do ${fmt(plan.boost_target_t, 0)} °C` : "Pompa pracuje samodzielnie";
+      icon = on ? "🚀" : "🤖";
+    }
     if (heaterOn && on) { title2 = `Pompa + grzałka ${fmt(heaterKw, 1)} kW`; icon = "🔥⚡"; }
     else if (heaterOn) { title2 = `Grzałka teraz ${fmt(heaterKw, 1)} kW`; icon = "⚡"; }
     const leg = isDhw ? this._st("legionella") : null;
     return `<div class="card buffer">
       <div class="card-head"><h2>${title}</h2><span class="chips">
         ${valve && valveLabel ? `<span class="chip chip-info">${esc(valveLabel)}</span>` : ""}
+        <span class="chip ${boost ? "chip-ok" : "chip-info"}" title="Strategia sterowania pompą">${boost ? "Tylko doładowanie" : "Pełne sterowanie"}</span>
         <span class="chip ${mode.cls}">${esc(mode.label)}</span></span></div>
       <div class="storage-row">
         ${this._layerBar(top, bottom, soc, isDhw)}
@@ -299,12 +305,12 @@ class PstrykAIPanel extends HTMLElement {
           <div class="kv">
             <div data-more="${esc(topS?.entity_id || "")}"><span>${bottom !== null ? "Średnio" : "Teraz"}</span><b>${fmt(current, 1)} °C</b><small>${esc(srcLabel)}</small></div>
             <div><span>Cel</span><b>${fmt(planSensor?.state, 1)} °C</b></div>
-            <div><span>${on || heaterOn ? "Grzanie" : "Następne grzanie"}</span><b>${esc(
+            <div><span>${boost ? (on ? "Doładowanie" : "Następne doładowanie") : on || heaterOn ? "Grzanie" : "Następne grzanie"}</span><b>${esc(
               plan.recommended_start ? (Date.parse(plan.recommended_start) <= Date.now() ? "teraz" : this._dayTime(plan.recommended_start)) : "–"
             )}</b>
               <small>${plan.recommended_stop ? `do ${esc(this._time(plan.recommended_stop))}` : ""}</small></div>
             <div><span>Koszt 24 h</span><b>${fmt(plan.expected_cost_pln, 2)} zł</b>${num(plan.fuel_cost_pln) ? `<small>w tym gaz ${fmt(plan.fuel_cost_pln, 2)} zł</small>` : ""}</div>
-            <div><span>Oszczędność</span><b>${fmt(plan.expected_savings_pln, 2)} zł</b><small>vs termostat (to samo minimum)</small></div>
+            <div><span>Oszczędność</span><b>${fmt(plan.expected_savings_pln, 2)} zł</b><small>${boost ? "vs sama pompa ciepła" : "vs termostat (to samo minimum)"}</small></div>
             ${plan.heater_next_start ? `<div><span>Grzałka</span><b>${esc(this._dayTime(plan.heater_next_start))}</b></div>` : ""}
             ${leg ? `<div data-more="${esc(leg.entity_id)}"><span>Antylegionella</span><b>${esc(leg.state && leg.state !== "unknown" ? this._dayTime(leg.state) : "–")}</b>
               <small>${leg.attributes?.planned_at ? `plan: ${esc(this._dayTime(leg.attributes.planned_at))}` : ""}</small></div>` : ""}
@@ -484,8 +490,14 @@ class PstrykAIPanel extends HTMLElement {
     for (const [key, label] of [["buffer_plan_reason", "bufor"], ["dhw_plan_reason", "CWU"]]) {
       const steps = this._attr(key, "schedule") || [];
       if (!steps.length) continue;
-      const hp = steps.filter((s) => (num(s.hp_kwh) ?? (s.heat > 0 ? 1 : 0)) > 0).map((s) => ({ start: s.start, note: `COP ${fmt(s.cop, 1)}` }));
-      lanes.push({ name: `Pompa ciepła → ${label}`, short: `PC→${label}`, cls: "lane-heat", hours: hp });
+      const boost = this._attr(key === "buffer_plan_reason" ? "buffer_target_temperature" : "dhw_target_temperature", "strategy") === "boost";
+      if (boost) {
+        const b = steps.filter((s) => num(s.heat) > 0).map((s) => ({ start: s.start, note: `100% · COP ${fmt(s.cop, 1)}` }));
+        lanes.push({ name: `Doładowanie 100% → ${label}`, short: `Doład. ${label}`, cls: "lane-heat", hours: b });
+      } else {
+        const hp = steps.filter((s) => (num(s.hp_kwh) ?? (s.heat > 0 ? 1 : 0)) > 0).map((s) => ({ start: s.start, note: `COP ${fmt(s.cop, 1)}` }));
+        lanes.push({ name: `Pompa ciepła → ${label}`, short: `PC→${label}`, cls: "lane-heat", hours: hp });
+      }
       const heater = steps.filter((s) => num(s.heater_kwh) > 0).map((s) => ({ start: s.start, note: `${fmt(s.heater_kwh, 1)} kWh` }));
       if (heater.length || this._st(key === "buffer_plan_reason" ? "buffer_heater_power" : "dhw_heater_power"))
         lanes.push({ name: `Grzałka ${label}`, short: `Grzałka ${label}`, cls: "lane-heater", hours: heater });

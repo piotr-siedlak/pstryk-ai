@@ -1,6 +1,6 @@
 # Pstryk AI – Energy Intelligence & Optimization
 
-[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.4.1-blue)
+[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.5.0-blue)
 
 Home Assistant integration for Polish [Pstryk.pl](https://pstryk.pl) customers. It combines **confirmed Pstryk prices** with public market,
 power-system and weather data to build a **rolling 7-day (168 h) probabilistic price forecast**, finds the cheapest periods, plans flexible
@@ -21,6 +21,9 @@ loads and a **heat-pump buffer**, and publishes everything to Home Assistant and
   P10/P50/P90, confidence, live accuracy tracking.
 * Optimisation: cheapest windows across midnight/days, cheapest N hours, most expensive periods, uncertainty-aware postponement,
   device profiles with min run/off times (dynamic programming), thermal buffer MPC with COP(T_out, T_supply) and heat losses.
+* **Heat-pump strategy (v0.5)**: *Tylko doładowanie* (default) – the heat pump decides on its own, Pstryk AI only adds 100 % boosts
+  in cheap hours when they really pay off; or *Pełne sterowanie* – full hourly control with modulation. Switchable at runtime.
+  A real 7-day closed-loop simulation: −12 % (boost) / −22 % (full) vs the heat pump alone, no comfort loss – [docs/SIMULATION.md](docs/SIMULATION.md).
 * **Heat storages (v0.4)**: buffer and hot-water tank (CWU) with top/bottom sensors, electric/gas heaters with power steps, shared heat
   pump with switching valve and CWU priority, ready-by times, legionella cycle, connection power limit – all optional.
 * **Pstryk spending**: today, yesterday, this month, month projection, previous month, last 12 months, cost breakdown; optional import
@@ -55,7 +58,7 @@ for the seasonal baseline. Read the caveats in [docs/FORECASTING.md](docs/FORECA
 ## Documentation
 [Installation](docs/INSTALLATION.md) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) ·
 [Data sources & licenses](docs/API_SOURCES.md) · [MQTT topics](docs/MQTT_TOPICS.md) · [Forecasting](docs/FORECASTING.md) ·
-[Optimization](docs/OPTIMIZATION.md) · [Heat storages & CWU](docs/HEAT_STORAGES.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Research](docs/RESEARCH.md) ·
+[Optimization](docs/OPTIMIZATION.md) · [Heat storages & CWU](docs/HEAT_STORAGES.md) · [7-day simulation](docs/SIMULATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Research](docs/RESEARCH.md) ·
 [Loxone example](examples/loxone.md) · [Changelog](CHANGELOG.md)
 
 ## Safety

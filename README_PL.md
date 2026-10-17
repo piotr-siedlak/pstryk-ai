@@ -44,6 +44,17 @@ licznik i saldo, jakość prognozy oraz status źródeł danych. Działa w trybi
 
 ![Panel Pstryk AI](docs/images/panel.jpg)
 
+## Nowość v0.5: strategia sterowania pompą
+Przełącznik (select) **Strategia sterowania pompą** – także w *Konfiguruj → Bufor*:
+* **Tylko doładowanie** (domyślnie) – pompa ciepła sama decyduje kiedy i jak grzać (trzyma swoją nastawę). Pstryk AI tylko w tanich
+  godzinach mówi „teraz 100% do 55 °C”, i to wyłącznie wtedy, gdy takie ciepło jest tańsze niż to, które pompa wyprodukuje później
+  sama (uwzględnia niższy COP przy wyższej temperaturze). Temat `optimizer/buffer/boost` (1/0), opcjonalny własny temat polecenia
+  (1/0 lub nastawa °C), parametry: temperatura doładowania, udział najtańszych godzin (domyślnie 40 %), osobno dla CWU.
+* **Pełne sterowanie** – Pstryk AI planuje każdą godzinę (modulacja 30/65/100 %, grzałki, zawór) – jak w v0.4.
+
+Symulacja 7 dni na prawdziwych danych (godzina po godzinie, bez wiedzy o przyszłości): **−12 %** kosztu (doładowanie) i **−22 %**
+(pełne sterowanie) względem samej pompy, 0 godzin poniżej minimum – [docs/SIMULATION.md](docs/SIMULATION.md).
+
 ## Nowości v0.4 (wszystko opcjonalne, włączane w opcjach)
 * **Bufor z czujnikiem góra/dół** – dotychczasowy czujnik bufora jest automatycznie przeniesiony na „górę”; dół jest opcjonalny.
   Plan liczy energię i naładowanie (%) ze średniej, a komfort z górnej warstwy.

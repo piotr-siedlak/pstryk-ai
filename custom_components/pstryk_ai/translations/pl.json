@@ -81,6 +81,11 @@
           "buffer_bottom_json_key": "Bufor DÓŁ – klucz JSON (opcjonalnie)",
           "outdoor_temperature_topic": "Temperatura zewnętrzna – temat MQTT (opcjonalnie)",
           "outdoor_temperature_json_key": "Temperatura zewnętrzna – klucz JSON (opcjonalnie)",
+          "heat_pump_strategy": "Strategia sterowania pompą",
+          "boost_temperature": "Temperatura doładowania (100% do)",
+          "boost_cheap_share": "Doładowanie tylko w najtańszej części najbliższych 24 h",
+          "boost_command_topic": "Temat polecenia doładowania (opcjonalnie, tylko tryb sterowania)",
+          "boost_command_format": "Format polecenia doładowania",
           "heat_pump_max_supply_temperature": "Maksymalna temperatura zasilania pompy ciepła",
           "heat_pump_min_modulation": "Minimalna modulacja pompy ciepła (100 % = sprężarka wł./wył.)",
           "mqtt_input_max_age_minutes": "Odczyty MQTT starsze niż ta wartość traktuj jako brak danych",
@@ -244,6 +249,11 @@
           "buffer_bottom_json_key": "Bufor DÓŁ – klucz JSON (opcjonalnie)",
           "outdoor_temperature_topic": "Temperatura zewnętrzna – temat MQTT (opcjonalnie)",
           "outdoor_temperature_json_key": "Temperatura zewnętrzna – klucz JSON (opcjonalnie)",
+          "heat_pump_strategy": "Strategia sterowania pompą",
+          "boost_temperature": "Temperatura doładowania (100% do)",
+          "boost_cheap_share": "Doładowanie tylko w najtańszej części najbliższych 24 h",
+          "boost_command_topic": "Temat polecenia doładowania (opcjonalnie, tylko tryb sterowania)",
+          "boost_command_format": "Format polecenia doładowania",
           "heat_pump_max_supply_temperature": "Maksymalna temperatura zasilania pompy ciepła",
           "heat_pump_min_modulation": "Minimalna modulacja pompy ciepła (100 % = sprężarka wł./wył.)",
           "mqtt_input_max_age_minutes": "Odczyty MQTT starsze niż ta wartość traktuj jako brak danych",
@@ -304,7 +314,9 @@
           "dhw_valve_command_topic": "Temat sterowania zaworem przełączającym (opcjonalnie, tryb sterowania)",
           "legionella_enabled": "Cykl antylegionella",
           "legionella_temperature": "Temperatura antylegionella",
-          "legionella_interval_days": "Odstęp cyklu antylegionella"
+          "legionella_interval_days": "Odstęp cyklu antylegionella",
+          "dhw_boost_temperature": "Temperatura doładowania CWU",
+          "dhw_boost_command_topic": "Temat polecenia doładowania CWU (opcjonalnie, tylko tryb sterowania)"
         }
       },
       "dhw_heater": {
@@ -447,7 +459,13 @@
           "topic_spends_monthly": "spends/monthly",
           "topic_heartbeat": "heartbeat",
           "topic_optimizer_buffer_hp_modulation": "optimizer/buffer/hp_modulation",
-          "topic_optimizer_dhw_hp_modulation": "optimizer/dhw/hp_modulation"
+          "topic_optimizer_dhw_hp_modulation": "optimizer/dhw/hp_modulation",
+          "topic_optimizer_buffer_boost": "optimizer/buffer/boost",
+          "topic_optimizer_buffer_boost_target": "optimizer/buffer/boost_target",
+          "topic_optimizer_buffer_strategy": "optimizer/buffer/strategy",
+          "topic_optimizer_dhw_boost": "optimizer/dhw/boost",
+          "topic_optimizer_dhw_boost_target": "optimizer/dhw/boost_target",
+          "topic_optimizer_dhw_strategy": "optimizer/dhw/strategy"
         }
       },
       "panel": {
@@ -559,6 +577,18 @@
       "options": {
         "kw": "kW",
         "w": "W"
+      }
+    },
+    "heat_pump_strategy": {
+      "options": {
+        "boost": "Tylko doładowanie – pompa decyduje sama, 100% w tanich godzinach",
+        "full": "Pełne sterowanie (modulacja co godzinę)"
+      }
+    },
+    "boost_command_format": {
+      "options": {
+        "binary": "Wł./wył. (1/0)",
+        "setpoint": "Nastawa w °C (0 = wył.)"
       }
     },
     "distribution_tariff": {
@@ -919,6 +949,13 @@
         "state": {
           "min_cost": "Minimalny koszt",
           "comfort": "Komfort"
+        }
+      },
+      "heat_pump_strategy": {
+        "name": "Strategia sterowania pompą",
+        "state": {
+          "boost": "Tylko doładowanie 100% w tanich godzinach",
+          "full": "Pełne sterowanie"
         }
       }
     }

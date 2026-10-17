@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import PstrykAIConfigEntry
-from .const import BUFFER_STRATEGIES, FORECAST_MODELS
+from .const import BUFFER_STRATEGIES, FORECAST_MODELS, HP_STRATEGIES
 from .coordinator import PstrykAICoordinator
 from .entity import PstrykAIEntity
 
@@ -24,6 +24,11 @@ SELECTS: tuple[SelectEntityDescription, ...] = (
         translation_key="buffer_strategy",
         options=BUFFER_STRATEGIES,
         entity_category=EntityCategory.CONFIG,
+    ),
+    SelectEntityDescription(
+        key="heat_pump_strategy",
+        translation_key="heat_pump_strategy",
+        options=HP_STRATEGIES,
     ),
 )
 

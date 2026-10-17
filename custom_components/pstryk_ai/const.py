@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "pstryk_ai"
 NAME: Final = "Pstryk AI"
 MANUFACTURER: Final = "Pstryk AI (community)"
-VERSION: Final = "0.4.1"
+VERSION: Final = "0.5.0"
 
 LOCAL_TZ: Final = "Europe/Warsaw"
 
@@ -177,6 +177,23 @@ CONF_BUFFER_BOTTOM_ENTITY: Final = "buffer_bottom_entity"
 CONF_HP_MAX_T: Final = "heat_pump_max_supply_temperature"
 CONF_HP_MIN_MODULATION: Final = "heat_pump_min_modulation"
 DEFAULT_HP_MIN_MODULATION: Final = 30
+
+# v0.5 – heat pump strategy: full control or "boost only" (heat pump decides, we only boost at 100 %)
+CONF_HP_STRATEGY: Final = "heat_pump_strategy"
+HP_STRATEGY_BOOST: Final = "boost"
+HP_STRATEGY_FULL: Final = "full"
+HP_STRATEGIES: Final = [HP_STRATEGY_BOOST, HP_STRATEGY_FULL]
+CONF_BOOST_T: Final = "boost_temperature"
+CONF_BOOST_SHARE: Final = "boost_cheap_share"
+CONF_BOOST_TOPIC: Final = "boost_command_topic"
+CONF_BOOST_FORMAT: Final = "boost_command_format"
+CONF_DHW_BOOST_T: Final = "dhw_boost_temperature"
+CONF_DHW_BOOST_TOPIC: Final = "dhw_boost_command_topic"
+BOOST_FORMAT_BINARY: Final = "binary"
+BOOST_FORMAT_SETPOINT: Final = "setpoint"
+BOOST_FORMATS: Final = [BOOST_FORMAT_BINARY, BOOST_FORMAT_SETPOINT]
+DEFAULT_BOOST_T: Final = 55.0
+DEFAULT_BOOST_SHARE: Final = 40
 
 # Heaters: f"{prefix}_heater_<field>" with prefix "buffer" or "dhw"
 HEATER_FIELDS: Final = (
