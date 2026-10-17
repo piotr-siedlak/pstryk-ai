@@ -5,7 +5,9 @@
     "frontend",
     "http",
     "mqtt",
-    "panel_custom"
+    "panel_custom",
+    "persistent_notification",
+    "recorder"
   ],
   "codeowners": [
     "@piotr-siedlak"
@@ -19,5 +21,5 @@
     "custom_components.pstryk_ai"
   ],
   "requirements": [],
-  "version": "0.3.0"
+  "version": "0.4.0"
 }

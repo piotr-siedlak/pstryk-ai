@@ -24,6 +24,9 @@ from .const import (
     CONF_BUFFER_TEMP_ENTITY,
     CONF_BUFFER_TEMP_KEY,
     CONF_BUFFER_TEMP_TOPIC,
+    CONF_BUFFER_TOP_ENTITY,
+    CONF_BUFFER_TOP_KEY,
+    CONF_BUFFER_TOP_TOPIC,
     CONF_BUFFER_VOLUME_L,
     CONF_CHEAP_HOURS,
     CONF_DEVICE_PROFILES,
@@ -108,6 +111,7 @@ from .const import (
 from .models.optimizer import DeviceProfile
 from .optimization.heat_pump import CopModel, parse_cop_curve
 from .optimization.thermal_storage import BufferConfig
+from .settings_ext import ExtSettings, load_ext
 from .tariff import Tariff
 
 _LOGGER = logging.getLogger(__name__)
@@ -158,6 +162,7 @@ class Settings:
     show_panel: bool
     optimization_enabled: bool
     advisory_mode: bool
+    ext: ExtSettings = field(default_factory=ExtSettings)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -198,6 +203,15 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
     min_t = float(g(CONF_BUFFER_MIN_T, DEFAULT_BUFFER_MIN_T))
     max_t = float(g(CONF_BUFFER_MAX_T, DEFAULT_BUFFER_MAX_T))
     strategy = g(CONF_BUFFER_STRATEGY, BUFFER_STRATEGY_COST)
+    ext = load_ext(c)
+    tariff = Tariff(
+        vat_rate=float(g(CONF_VAT_RATE, DEFAULT_VAT_RATE)),
+        energy_margin_net=float(g(CONF_ENERGY_MARGIN, DEFAULT_ENERGY_MARGIN)),
+        excise_net=float(g(CONF_EXCISE, DEFAULT_EXCISE)),
+        var_distribution_net=float(g(CONF_VAR_DISTRIBUTION, DEFAULT_VAR_DISTRIBUTION)),
+        pstryk_includes_distribution=bool(g(CONF_PRICE_INCLUDES_DISTRIBUTION, False)),
+        distribution=ext.distribution,
+    )
     return Settings(
         api_key=c[CONF_API_KEY],
         latitude=lat,
@@ -216,22 +230,16 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
         auto_retrain=bool(g(CONF_AUTO_RETRAIN, True)),
         risk_aversion=float(g(CONF_RISK_AVERSION, DEFAULT_RISK_AVERSION)),
         max_speculative_h=int(g(CONF_MAX_SPECULATIVE_H, DEFAULT_MAX_SPECULATIVE_H)),
-        tariff=Tariff(
-            vat_rate=float(g(CONF_VAT_RATE, DEFAULT_VAT_RATE)),
-            energy_margin_net=float(g(CONF_ENERGY_MARGIN, DEFAULT_ENERGY_MARGIN)),
-            excise_net=float(g(CONF_EXCISE, DEFAULT_EXCISE)),
-            var_distribution_net=float(g(CONF_VAR_DISTRIBUTION, DEFAULT_VAR_DISTRIBUTION)),
-            pstryk_includes_distribution=bool(g(CONF_PRICE_INCLUDES_DISTRIBUTION, False)),
-        ),
+        tariff=tariff,
         auto_calibrate=bool(g(CONF_AUTO_CALIBRATE_TARIFF, False)),
         cheap_hours=int(g(CONF_CHEAP_HOURS, DEFAULT_CHEAP_HOURS)),
         price_threshold=float(g(CONF_PRICE_THRESHOLD, DEFAULT_PRICE_THRESHOLD)),
         profiles=parse_profiles(c.get(CONF_DEVICE_PROFILES)),
         buffer_enabled=bool(g(CONF_BUFFER_ENABLED, False)),
-        buffer_temp_entity=g(CONF_BUFFER_TEMP_ENTITY, None),
+        buffer_temp_entity=g(CONF_BUFFER_TOP_ENTITY, None) or g(CONF_BUFFER_TEMP_ENTITY, None),
         outdoor_temp_entity=g(CONF_OUTDOOR_TEMP_ENTITY, None),
-        buffer_temp_topic=(str(g(CONF_BUFFER_TEMP_TOPIC, "")).strip() or None),
-        buffer_temp_key=(str(g(CONF_BUFFER_TEMP_KEY, "")).strip() or None),
+        buffer_temp_topic=(str(g(CONF_BUFFER_TOP_TOPIC, "") or g(CONF_BUFFER_TEMP_TOPIC, "")).strip() or None),
+        buffer_temp_key=(str(g(CONF_BUFFER_TOP_KEY, "") or g(CONF_BUFFER_TEMP_KEY, "")).strip() or None),
         outdoor_temp_topic=(str(g(CONF_OUTDOOR_TEMP_TOPIC, "")).strip() or None),
         outdoor_temp_key=(str(g(CONF_OUTDOOR_TEMP_KEY, "")).strip() or None),
         input_max_age_min=int(g(CONF_INPUT_MAX_AGE_MIN, DEFAULT_INPUT_MAX_AGE_MIN)),
@@ -250,6 +258,9 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
             max_starts_per_day=int(g(CONF_MAX_STARTS, DEFAULT_MAX_STARTS)),
             comfort_penalty_pln_per_kh=20.0 if strategy != BUFFER_STRATEGY_COST else 5.0,
             risk_aversion=float(g(CONF_RISK_AVERSION, DEFAULT_RISK_AVERSION)),
+            name="buffer",
+            hp_max_t=ext.hp_max_t,
+            heater=ext.buffer_heater.config if ext.buffer_heater.enabled else None,
         ),
         cop=CopModel(
             nominal_cop=float(g(CONF_HP_COP, DEFAULT_HP_COP)),
@@ -266,5 +277,6 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
         show_panel=bool(g(CONF_SHOW_PANEL, True)),
         optimization_enabled=bool(g(CONF_OPTIMIZATION_ENABLED, True)),
         advisory_mode=bool(g(CONF_ADVISORY_MODE, True)),
+        ext=ext,
         raw=c,
     )

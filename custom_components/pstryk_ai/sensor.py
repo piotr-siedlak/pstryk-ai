@@ -21,7 +21,7 @@ from . import PstrykAIConfigEntry
 from .api.pstryk import local_day_bounds
 from .coordinator import PstrykAICoordinator
 from .entity import PstrykAIEntity
-from .models.price_slot import PriceSlot, PriceSource, iso
+from .models.price_slot import PriceSlot, PriceSource, floor_hour, iso
 from .mqtt.schemas import compact_series
 from .outputs import PstrykAIData
 
@@ -33,6 +33,7 @@ CURRENCY = "PLN"
 class PstrykSensorDescription(SensorEntityDescription):
     value_fn: Callable[[PstrykAIData, PstrykAICoordinator], Any]
     attrs_fn: Callable[[PstrykAIData, PstrykAICoordinator], dict[str, Any]] | None = None
+    requires: Callable[[Any], bool] | None = None  # Settings -> create entity?
 
 
 def _slot_attrs(slot: PriceSlot | None) -> dict[str, Any]:
@@ -431,7 +432,7 @@ SENSORS: tuple[PstrykSensorDescription, ...] = (
         translation_key="energy_import_today",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL,
+        state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda d, c: _sum(_today_frames(d), "import_kwh"),
     ),
     PstrykSensorDescription(
@@ -439,7 +440,7 @@ SENSORS: tuple[PstrykSensorDescription, ...] = (
         translation_key="energy_export_today",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL,
+        state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda d, c: _sum(_today_frames(d), "export_kwh"),
     ),
     PstrykSensorDescription(
@@ -521,11 +522,368 @@ def _r(value: float | None) -> float | None:
     return None if value is None else round(value, 4)
 
 
+def _layer(storage: str, key: str) -> Callable[[PstrykAIData, PstrykAICoordinator], Any]:
+    return lambda d, c: c.storage_layers(storage)[key]
+
+
+def _plan(storage: str) -> Callable[[PstrykAIData], Any]:
+    return lambda d: d.dhw if storage == "dhw" else d.buffer
+
+
+def _plan_attr(storage: str, attr: str, digits: int | None = 2) -> Callable[[PstrykAIData, PstrykAICoordinator], Any]:
+    def fn(d: PstrykAIData, c: PstrykAICoordinator) -> Any:
+        p = _plan(storage)(d)
+        if p is None:
+            return None
+        v = getattr(p, attr)
+        return round(v, digits) if isinstance(v, float) and digits is not None else v
+
+    return fn
+
+
+def _spend(path: str, attr: str | None = None) -> Callable[[PstrykAIData, PstrykAICoordinator], Any]:
+    def fn(d: PstrykAIData, c: PstrykAICoordinator) -> Any:
+        sp = d.spends
+        if sp is None:
+            return None
+        value = getattr(sp, path)
+        if attr is None:
+            return value
+        if isinstance(value, dict):
+            return value.get(attr)
+        return None if value is None else getattr(value, attr)
+
+    return fn
+
+
+def _cons(key: str, field: str, month: bool = False) -> Callable[[PstrykAIData, PstrykAICoordinator], Any]:
+    def fn(d: PstrykAIData, c: PstrykAICoordinator) -> Any:
+        data = c.consumption_month() if month else c.consumption()
+        keys = [k for k in data if k.startswith(key)]
+        if not keys:
+            return None
+        return round(sum(data[k].get(field, 0.0) for k in keys), 3)
+
+    return fn
+
+
+def _ext(attr: str) -> Callable[[Any], bool]:
+    def fn(s: Any) -> bool:
+        node: Any = s.ext
+        for part in attr.split("."):
+            node = getattr(node, part)
+        return bool(node)
+
+    return fn
+
+
+def _layers_attrs(storage: str) -> Callable[[PstrykAIData, PstrykAICoordinator], dict[str, Any]]:
+    return lambda d, c: {k: v for k, v in c.storage_layers(storage).items()}
+
+
+VALVE_OPTIONS = ["buffer", "dhw", "idle"]
+ZONE_OPTIONS = ["flat", "peak", "offpeak", "peak2"]
+
+EXTRA_SENSORS: tuple[PstrykSensorDescription, ...] = (
+    # ---- buffer layers / charge
+    PstrykSensorDescription(
+        key="buffer_bottom_temperature",
+        translation_key="buffer_bottom_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=_layer("buffer", "bottom"),
+        attrs_fn=_layers_attrs("buffer"),
+        requires=lambda s: s.buffer_enabled and s.ext.buffer_bottom.configured,
+    ),
+    PstrykSensorDescription(
+        key="buffer_soc",
+        translation_key="buffer_soc",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_plan_attr("buffer", "soc_pct", 1),
+        attrs_fn=lambda d, c: {"stored_energy_kwh": _plan_attr("buffer", "stored_energy_kwh")(d, c)},
+        requires=lambda s: s.buffer_enabled,
+    ),
+    PstrykSensorDescription(
+        key="buffer_heater_power",
+        translation_key="buffer_heater_power",
+        native_unit_of_measurement="kW",
+        suggested_display_precision=1,
+        value_fn=_plan_attr("buffer", "heater_power_kw"),
+        attrs_fn=lambda d, c: {"next_start": iso(_plan_attr("buffer", "heater_next_start")(d, c))},
+        requires=_ext("buffer_heater.enabled"),
+    ),
+    # ---- hot water (CWU)
+    PstrykSensorDescription(
+        key="dhw_top_temperature",
+        translation_key="dhw_top_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=_layer("dhw", "top"),
+        attrs_fn=_layers_attrs("dhw"),
+        requires=_ext("dhw.enabled"),
+    ),
+    PstrykSensorDescription(
+        key="dhw_bottom_temperature",
+        translation_key="dhw_bottom_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=_layer("dhw", "bottom"),
+        requires=lambda s: s.ext.dhw.enabled and s.ext.dhw.bottom.configured,
+    ),
+    PstrykSensorDescription(
+        key="dhw_soc",
+        translation_key="dhw_soc",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_plan_attr("dhw", "soc_pct", 1),
+        requires=_ext("dhw.enabled"),
+    ),
+    PstrykSensorDescription(
+        key="dhw_target_temperature",
+        translation_key="dhw_target_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        value_fn=_plan_attr("dhw", "target_temperature", 1),
+        attrs_fn=lambda d, c: d.dhw.to_dict(include_steps=False) if d.dhw else {},
+        requires=_ext("dhw.enabled"),
+    ),
+    PstrykSensorDescription(
+        key="dhw_next_window",
+        translation_key="dhw_next_window",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=_plan_attr("dhw", "recommended_start", None),
+        attrs_fn=lambda d, c: {"stop": iso(d.dhw.recommended_stop)} if d.dhw else {},
+        requires=_ext("dhw.enabled"),
+    ),
+    PstrykSensorDescription(
+        key="dhw_expected_cost",
+        translation_key="dhw_expected_cost",
+        native_unit_of_measurement=CURRENCY,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=_plan_attr("dhw", "expected_cost_pln"),
+        requires=_ext("dhw.enabled"),
+    ),
+    PstrykSensorDescription(
+        key="dhw_plan_reason",
+        translation_key="dhw_plan_reason",
+        value_fn=lambda d, c: d.dhw.optimization_reason[:250] if d.dhw else None,
+        attrs_fn=lambda d, c: (
+            {"mode": d.dhw.mode, "schedule": [st.to_dict() for st in d.dhw.steps[:48]]} if d.dhw else {}
+        ),
+        requires=_ext("dhw.enabled"),
+    ),
+    PstrykSensorDescription(
+        key="dhw_heater_power",
+        translation_key="dhw_heater_power",
+        native_unit_of_measurement="kW",
+        suggested_display_precision=1,
+        value_fn=_plan_attr("dhw", "heater_power_kw"),
+        attrs_fn=lambda d, c: {"next_start": iso(_plan_attr("dhw", "heater_next_start")(d, c))},
+        requires=lambda s: s.ext.dhw.enabled and s.ext.dhw_heater.enabled,
+    ),
+    PstrykSensorDescription(
+        key="legionella",
+        translation_key="legionella",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda d, c: (
+            datetime.fromisoformat(v.replace("Z", "+00:00"))
+            if (v := c.history.state.get("legionella_done_at"))
+            else None
+        ),
+        attrs_fn=lambda d, c: {
+            "planned_at": iso(d.dhw.legionella_at) if d.dhw else None,
+            "interval_days": c.settings.ext.dhw.legionella_days,
+        },
+        requires=lambda s: s.ext.dhw.enabled and s.ext.dhw.legionella_enabled,
+    ),
+    PstrykSensorDescription(
+        key="valve_position",
+        translation_key="valve_position",
+        device_class=SensorDeviceClass.ENUM,
+        options=VALVE_OPTIONS,
+        value_fn=lambda d, c: d.heat.valve_now if d.heat else None,
+        attrs_fn=lambda d, c: {"schedule": d.heat.valve_records()[:48]} if d.heat else {},
+        requires=lambda s: s.ext.dhw.enabled and s.ext.dhw.hp_mode == "valve",
+    ),
+    # ---- tariff / PV
+    PstrykSensorDescription(
+        key="distribution_zone",
+        translation_key="distribution_zone",
+        device_class=SensorDeviceClass.ENUM,
+        options=ZONE_OPTIONS,
+        value_fn=lambda d, c: c.settings.tariff.distribution_zone(d.now),
+        attrs_fn=lambda d, c: {"rate_gross": round(c.settings.tariff.distribution_gross(d.now), 4)},
+        requires=lambda s: s.ext.distribution is not None,
+    ),
+    PstrykSensorDescription(
+        key="pv_production_today",
+        translation_key="pv_production_today",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=1,
+        value_fn=lambda d, c: _pv_day(d, "production"),
+        attrs_fn=lambda d, c: {"surplus_kwh_today": _pv_day(d, "surplus"), "series": _pv_series(d)},
+        requires=_ext("pv_enabled"),
+    ),
+    PstrykSensorDescription(
+        key="pv_surplus_now",
+        translation_key="pv_surplus_now",
+        native_unit_of_measurement="kW",
+        suggested_display_precision=2,
+        value_fn=lambda d, c: round((d.pv.get("surplus") or {}).get(floor_hour(d.now), 0.0), 3) if d.pv else None,
+        requires=_ext("pv_enabled"),
+    ),
+    # ---- measured consumption (heat pump / heaters)
+    PstrykSensorDescription(
+        key="hp_energy_today",
+        translation_key="hp_energy_today",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+        value_fn=_cons("hp", "kwh"),
+        requires=_ext("hp_power.configured"),
+    ),
+    PstrykSensorDescription(
+        key="hp_cost_today",
+        translation_key="hp_cost_today",
+        native_unit_of_measurement=CURRENCY,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=2,
+        value_fn=_cons("hp", "cost"),
+        attrs_fn=lambda d, c: {
+            "month_kwh": _cons("hp", "kwh", True)(d, c),
+            "month_cost": _cons("hp", "cost", True)(d, c),
+        },
+        requires=_ext("hp_power.configured"),
+    ),
+    PstrykSensorDescription(
+        key="heaters_energy_today",
+        translation_key="heaters_energy_today",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+        value_fn=_cons("heater_", "kwh"),
+        attrs_fn=lambda d, c: {
+            "cost_today": _cons("heater_", "cost")(d, c),
+            "month_kwh": _cons("heater_", "kwh", True)(d, c),
+            "month_cost": _cons("heater_", "cost", True)(d, c),
+        },
+        requires=lambda s: bool(s.ext.buffer_heater.state_topic or s.ext.dhw_heater.state_topic),
+    ),
+    # ---- Pstryk spending
+    PstrykSensorDescription(
+        key="cost_yesterday",
+        translation_key="cost_yesterday",
+        native_unit_of_measurement=CURRENCY,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=_spend("yesterday", "cost"),
+        attrs_fn=lambda d, c: d.spends.yesterday.to_dict() if d.spends and d.spends.yesterday else {},
+        requires=_ext("spends"),
+    ),
+    PstrykSensorDescription(
+        key="cost_previous_month",
+        translation_key="cost_previous_month",
+        native_unit_of_measurement=CURRENCY,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=_spend("previous_month", "cost"),
+        attrs_fn=lambda d, c: d.spends.previous_month if d.spends else {},
+        requires=_ext("spends"),
+    ),
+    PstrykSensorDescription(
+        key="cost_12_months",
+        translation_key="cost_12_months",
+        native_unit_of_measurement=CURRENCY,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=_spend("last_12_months", "cost"),
+        attrs_fn=lambda d, c: {
+            **(d.spends.last_12_months if d.spends else {}),
+            "months": d.spends.months if d.spends else [],
+        },
+        requires=lambda s: s.ext.spends and s.ext.spends_history,
+    ),
+    PstrykSensorDescription(
+        key="avg_daily_cost",
+        translation_key="avg_daily_cost",
+        native_unit_of_measurement=CURRENCY,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=_spend("avg_daily_cost"),
+        attrs_fn=lambda d, c: {"days": d.spends.days if d.spends else []},
+        requires=_ext("spends"),
+    ),
+    PstrykSensorDescription(
+        key="projected_month_cost",
+        translation_key="projected_month_cost",
+        native_unit_of_measurement=CURRENCY,
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=_spend("projected_month_cost"),
+        attrs_fn=lambda d, c: {
+            "breakdown_month": d.spends.breakdown_month if d.spends else {},
+            "this_month": d.spends.this_month if d.spends else {},
+        },
+        requires=_ext("spends"),
+    ),
+    # ---- learning
+    PstrykSensorDescription(
+        key="learning_status",
+        translation_key="learning_status",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d, c: sum(len(v) for v in c.learning.samples.values()),
+        attrs_fn=lambda d, c: {
+            "results": c.learning.results,
+            "applied": c.settings.ext.learn_apply,
+            "samples": {k: len(v) for k, v in c.learning.samples.items()},
+        },
+        requires=lambda s: s.ext.learn_losses or s.ext.learn_dhw_profile or s.ext.learn_cop,
+    ),
+)
+
+
+def _pv_series(d: PstrykAIData) -> list[dict[str, Any]]:
+    if not d.pv:
+        return []
+    start, _ = local_day_bounds(d.now)
+    prod = d.pv.get("production") or {}
+    sur = d.pv.get("surplus") or {}
+    return [
+        {"start": iso(t), "production": round(v, 3), "surplus": round(sur.get(t, 0.0), 3)}
+        for t, v in sorted(prod.items())
+        if start <= t < start + timedelta(hours=72)
+    ]
+
+
+def _pv_day(d: PstrykAIData, key: str) -> float | None:
+    if not d.pv:
+        return None
+    series = d.pv.get(key) or {}
+    start, end = local_day_bounds(d.now)
+    return round(sum(v for t, v in series.items() if start <= t < end), 2)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: PstrykAIConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data
-    entities: list[SensorEntity] = [PstrykSensor(coordinator, d) for d in SENSORS]
+    settings = coordinator.settings
+    entities: list[SensorEntity] = [
+        PstrykSensor(coordinator, d) for d in (*SENSORS, *EXTRA_SENSORS) if d.requires is None or d.requires(settings)
+    ]
     entities += [DeviceScheduleSensor(coordinator, p.name, p.slug) for p in coordinator.settings.profiles]
     async_add_entities(entities)
 
@@ -534,7 +892,9 @@ class PstrykSensor(PstrykAIEntity, SensorEntity):
     _platform = "sensor"
     entity_description: PstrykSensorDescription
     # Large time series must not bloat the recorder database.
-    _unrecorded_attributes = frozenset({"prices", "series", "schedule", "summary", "hours"})
+    _unrecorded_attributes = frozenset(
+        {"prices", "series", "schedule", "summary", "hours", "days", "months", "results"}
+    )
 
     def __init__(self, coordinator: PstrykAICoordinator, description: PstrykSensorDescription) -> None:
         super().__init__(coordinator, description.key)

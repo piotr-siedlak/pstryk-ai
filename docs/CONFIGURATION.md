@@ -4,7 +4,7 @@ The wizard has 9 steps; every option except the API key stays editable via *Conf
 
 | Step | Options |
 |---|---|
-| 1 Pstryk | API key (validated), prosumer, VAT, energy margin (net PLN/kWh), excise (default 0.005), variable distribution (net), *Pstryk price includes distribution*, *local tariff auto-calibration* (opt-in) |
+| 1 Pstryk | API key (validated), spending (daily/monthly, 12-month history, import to HA statistics), prosumer, VAT, energy margin (net PLN/kWh), excise (default 0.005), variable distribution (net), *Pstryk price includes distribution*, *local tariff auto-calibration* (opt-in) |
 | 2 Location | HA location or manual coordinates |
 | 3 Market data | source `entsoe` (recommended) / `tge` (experimental) / `pse_rce` (proxy), ENTSO-E token, PSE on/off, TGE on/off, EUR/PLN rate |
 | 4 Weather | model (ECMWF IFS 0.25°, ICON, GFS, best match), refresh interval, history length |
@@ -18,7 +18,14 @@ Additional options (menu only):
 
 | Option | Purpose |
 |---|---|
-| MQTT topics | rename (relative or absolute) or disable each of the 46 topics |
+| Distribution tariff | G11/G12/G12w/G13 zone rates and hours; optimise on the price including distribution |
+| Buffer heater / CWU heater | electric or gas heater with power steps, command and state topics |
+| Hot water (CWU) | second storage: sensors, ready times, daily use, valve/priority, legionella |
+| Power limit and metering | connection limit, base load, heat-pump power reading |
+| PV self-consumption | kWp, performance ratio, base load |
+| Learning | heat demand/losses, hot-water profile, COP; use learned values |
+| Notifications | tomorrow's prices, negative prices, local-control fallback, stale data; notify service; MQTT heartbeat |
+| MQTT topics | rename (relative or absolute) or disable each of the 62 topics |
 | Panel | show/hide the *Pstryk AI* sidebar panel |
 
 ## Price-source precedence

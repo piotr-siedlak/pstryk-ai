@@ -7,13 +7,14 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 import logging
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_call_later, async_track_time_change
+from homeassistant.helpers.event import async_call_later, async_track_time_change, async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -27,27 +28,31 @@ from .const import (
     DOMAIN,
     EVENT_PLAN_UPDATED,
     EVENT_PRICES_CONFIRMED,
+    LOCAL_TZ,
     MARKET_PROVIDER_ENTSOE,
     MARKET_PROVIDER_PSE_RCE,
     MARKET_PROVIDER_TGE,
 )
 from .forecasting.features import FeatureContext, local_date
 from .forecasting.model_manager import ModelState, PriceForecaster
+from .heat_runtime import HeatRuntimeMixin, new_learning_store
 from .models.energy_data import MeterFrame, PstrykSnapshot
 from .models.forecasts import ForecastRun
-from .models.price_slot import PriceSlot, PriceSource, floor_hour, iso
+from .models.price_slot import PriceSlot, floor_hour, iso
 from .mqtt.discovery import discovery_messages, removal_messages
 from .mqtt.inputs import InputSpec, MqttInputs
 from .mqtt.publisher import MqttPublisher
-from .mqtt.schemas import TOPICS
+from .mqtt.schemas import TOPICS, Message
+from .notify import Notifier
 from .optimization.scheduler import schedule_device
-from .optimization.thermal_storage import plan_buffer
-from .outputs import PstrykAIData, build_messages, compute_windows
+from .outputs import PstrykAIData, build_messages, compute_windows, spend_messages
 from .settings import Settings, load_settings
+from .spends import daily_totals, monthly_totals, summarize
+from .statistics import async_import as async_import_statistics
 from .storage.cache import ProviderCache
 from .storage.history import HistoryStore
 from .tariff import calibration_pairs
-from .timeline import build_timeline
+from .timeline import Timeline, build_timeline
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +68,12 @@ CONTROL_KEYS = (
     "cheap_hours",
     "forecast_model",
     "buffer_strategy",
+    "dhw_enabled",
+    "buffer_heater_enabled",
+    "dhw_heater_enabled",
+    "pv_enabled",
+    "power_limit_enabled",
+    "optimize_all_in",
 )
 
 
@@ -100,7 +111,7 @@ class ProviderStatus:
         }
 
 
-class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
+class PstrykAICoordinator(HeatRuntimeMixin, DataUpdateCoordinator[PstrykAIData]):
     """Owns all state for one config entry."""
 
     config_entry: ConfigEntry
@@ -139,6 +150,12 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             "cheap_hours": s.cheap_hours,
             "forecast_model": s.forecast_model,
             "buffer_strategy": s.buffer_strategy,
+            "dhw_enabled": s.ext.dhw.enabled,
+            "buffer_heater_enabled": s.ext.buffer_heater.enabled,
+            "dhw_heater_enabled": s.ext.dhw_heater.enabled,
+            "pv_enabled": s.ext.pv_enabled,
+            "power_limit_enabled": s.ext.power_limit_enabled,
+            "optimize_all_in": s.ext.optimize_all_in,
         }
         self.snapshot: PstrykSnapshot = PstrykSnapshot()
         self.daily: list[MeterFrame] = []
@@ -158,6 +175,13 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         self._stale_checked = False
         self._last_input_recalc: datetime | None = None
         self._pending_input_recalc: CALLBACK_TYPE | None = None
+        self._tz = ZoneInfo(LOCAL_TZ)
+        self._power_last: tuple[datetime, dict[str, float | None]] | None = None
+        self._learn_prev: dict[str, Any] | None = None
+        self._last_timeline = None
+        self.heat_plan = None
+        self.learning = new_learning_store(None)
+        self.notifier = Notifier(hass, enabled=dict(s.ext.notify), service=s.ext.notify_service)
         self.inputs = MqttInputs(hass, [])
 
     # ================================================================ setup
@@ -171,7 +195,19 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         for key in CONTROL_KEYS:
             if key in persisted:
                 self.controls[key] = persisted[key]
+        # a feature switched off in the options cannot be switched on at runtime
+        x = self.settings.ext
+        for key, allowed in (
+            ("dhw_enabled", x.dhw.enabled),
+            ("buffer_heater_enabled", x.buffer_heater.enabled),
+            ("dhw_heater_enabled", x.dhw_heater.enabled),
+            ("pv_enabled", x.pv_enabled),
+            ("power_limit_enabled", x.power_limit_enabled),
+        ):
+            if not allowed:
+                self.controls[key] = False
         self.forecaster.mode = self.controls["forecast_model"]
+        self.learning = new_learning_store(self.history.state.get("learning"))
         if model := self.history.state.get("model"):
             self.forecaster.state = ModelState.from_dict(model)
         # restore the last good Pstryk payload: confirmed prices survive restarts
@@ -184,7 +220,8 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
                 _LOGGER.debug("Cached Pstryk payload unusable")
         raw_daily, _ = self.cache.get("pstryk_daily")
         if raw_daily:
-            self.daily, self.monthly_summary = parse_daily(raw_daily)
+            frames, self.monthly_summary = parse_daily(raw_daily)
+            self._apply_daily_frames(frames)
         for key, target in (("weather_local", "local_weather"), ("weather_national", "national_weather")):
             payload, _ = self.cache.get(key)
             if payload:
@@ -209,6 +246,21 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         for h in (1, 7, 11, 19, 22):
             track(self._on_daily_balance, hour=h, minute=17, second=0)
         track(self._on_retrain_check, hour=3, minute=30, second=0)
+        track(self._on_spare_budget, minute=47, second=0)
+        if self.settings.ext.heartbeat:
+
+            @callback
+            def _beat(_now: datetime) -> None:
+                if self.controls["mqtt_enabled"]:
+                    self.config_entry.async_create_background_task(
+                        self.hass,
+                        self.publisher.async_publish(
+                            [Message("heartbeat", iso(self._now()) or "", retain=False, expiry_s=180)], self._now()
+                        ),
+                        f"{DOMAIN}_heartbeat",
+                    )
+
+            self._unsubs.append(async_track_time_interval(self.hass, _beat, timedelta(seconds=60)))
 
     def _track(self, action: Callable[[], Any], **kwargs: int) -> None:
         @callback
@@ -239,6 +291,9 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
     # ============================================================ triggers
     async def _on_slot_boundary(self) -> None:
         # price-slot change: recompute from local state, no external API call
+        now = self._now()
+        self.integrate_power(now)
+        self.learning_tick(now, self.heat_plan)
         await self.async_recalculate(reason="slot_boundary", forecast=False)
 
     async def _on_hourly_pstryk(self) -> None:
@@ -348,10 +403,14 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             self._prices_just_confirmed = True
 
     async def async_refresh_pstryk_daily(self) -> None:
+        """Daily frames for the current month (and the previous one for spending history)."""
         now = self._now()
         local = dt_util.as_local(now)
         month_start_local = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        start = dt_util.as_utc(month_start_local)
+        window_local = month_start_local
+        if self.settings.ext.spends:
+            window_local = (month_start_local - timedelta(days=1)).replace(day=1)
+        start = dt_util.as_utc(window_local)
         try:
             raw = await self.pstryk.fetch_daily(start, now)
         except ProviderError as err:
@@ -361,9 +420,61 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             return
         finally:
             self.cache.put_budget_state(self.pstryk.fingerprint, self.pstryk.budget.export())
-        self.daily, self.monthly_summary = parse_daily(raw)
+        frames, self.monthly_summary = parse_daily(raw)
+        self._apply_daily_frames(frames)
         self.cache.put("pstryk_daily", raw, now)
+        if self.settings.ext.spends:
+            self.history.add_spend_days(daily_totals(frames))
+            self.history.schedule_save("state")
+            if self.settings.ext.statistics_import:
+                await async_import_statistics(self.hass, self.history.spend_days)
         self.async_update_listeners()
+
+    def _apply_daily_frames(self, frames: list[MeterFrame]) -> None:
+        """Keep only the current local month for the *_month sensors."""
+        month = local_date(self._now()).strftime("%Y-%m")
+        self.daily = [f for f in frames if local_date(f.start + (f.end - f.start) / 2).strftime("%Y-%m") == month]
+
+    async def async_refresh_pstryk_monthly(self) -> None:
+        """Monthly totals for the last 12 months (one small request per day)."""
+        if not (self.settings.ext.spends and self.settings.ext.spends_history):
+            return
+        now = self._now()
+        local = dt_util.as_local(now)
+        first = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        year, month = first.year, first.month - 12
+        while month <= 0:
+            month += 12
+            year -= 1
+        start = dt_util.as_utc(first.replace(year=year, month=month))
+        try:
+            raw = await self.pstryk.fetch_monthly(start, now)
+        except ProviderError as err:
+            _LOGGER.debug("Pstryk monthly refresh skipped: %s", err)
+            return
+        finally:
+            self.cache.put_budget_state(self.pstryk.fingerprint, self.pstryk.budget.export())
+        frames, _ = parse_daily(raw)
+        self.history.add_spend_months(monthly_totals(frames))
+        self.history.state["spends_monthly_at"] = iso(now)
+        self.history.schedule_save("state")
+        self.async_update_listeners()
+
+    def _monthly_due(self) -> bool:
+        if not (self.settings.ext.spends and self.settings.ext.spends_history):
+            return False
+        last = self.history.state.get("spends_monthly_at")
+        if not last or not self.history.spend_months:
+            return True
+        return self._now() - datetime.fromisoformat(last.replace("Z", "+00:00")) > timedelta(hours=20)
+
+    async def _on_spare_budget(self) -> None:
+        """Use a spare request (never while waiting for tomorrow's prices) for monthly history."""
+        local = dt_util.as_local(self._now())
+        if 12 <= local.hour <= 17 and not self.snapshot.tomorrow_confirmed:
+            return
+        if self._monthly_due() and self.pstryk.budget.remaining() >= 1:
+            await self.async_refresh_pstryk_monthly()
 
     @staticmethod
     def _same_day(a: datetime | None, b: datetime) -> bool:
@@ -552,9 +663,16 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
                 horizon_hours=s.horizon_h,
                 history_hours=max(0, int((now - local_day_bounds(now)[0]).total_seconds() // 3600)),
             )
+            opt_timeline = timeline
+            if self.controls.get("optimize_all_in"):
+                opt_timeline = Timeline(
+                    buy=s.tariff.all_in_slots(list(timeline.buy)), sell=timeline.sell, generated_at=now
+                )
+            self._last_timeline = timeline
+            _, pv_sur, pv_sell = self.pv_maps()
             windows = (
                 compute_windows(
-                    timeline,
+                    opt_timeline,
                     now,
                     cheap_hours=int(self.controls["cheap_hours"]),
                     risk=s.risk_aversion,
@@ -567,7 +685,7 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
                 [
                     schedule_device(
                         p,
-                        timeline.buy,
+                        self.device_slots(list(opt_timeline.buy), p.power_kw, pv_sur, pv_sell),
                         now,
                         risk_aversion=s.risk_aversion,
                         max_speculative_hours=s.max_speculative_h,
@@ -578,18 +696,29 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
                 if self.controls["optimization_enabled"]
                 else []
             )
-            buffer = self._plan_buffer(timeline, now) if self.controls["buffer_enabled"] else None
-            if buffer is not None:
-                self.history.add_decision(
-                    {
-                        "at": iso(now),
-                        "should_heat": buffer.should_heat,
-                        "target": buffer.target_temperature,
-                        "mode": buffer.mode,
-                        "reason": reason,
-                    }
-                )
-                self.history.schedule_save("state")
+            self._last_timeline = timeline
+            heat = await self.async_plan_heat(timeline, now, schedules)
+            self.heat_plan = heat
+            buffer = heat.plans.get("buffer") if heat else None
+            dhw = heat.plans.get("dhw") if heat else None
+            for p in (buffer, dhw):
+                if p is not None:
+                    self.history.add_decision(
+                        {
+                            "at": iso(now),
+                            "storage": p.name,
+                            "should_heat": p.should_heat,
+                            "heater": p.heater_should_run,
+                            "target": p.target_temperature,
+                            "mode": p.mode,
+                            "reason": reason,
+                        }
+                    )
+                    self.history.schedule_save("state")
+            prod, sur, _ = self.pv_maps()
+            spends = (
+                summarize(self.history.spend_days, self.history.spend_months, now) if self.settings.ext.spends else None
+            )
 
             data = PstrykAIData(
                 now=now,
@@ -602,6 +731,10 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
                 windows=windows,
                 schedules=schedules,
                 buffer=buffer,
+                dhw=dhw,
+                heat=heat,
+                spends=spends,
+                pv={"production": prod, "surplus": sur},
                 providers={k: v.as_dict() for k, v in self.status.items()},
                 model_info=self.model_info(),
                 flags={
@@ -615,48 +748,9 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             )
             self.last_recalc = now
         await self._publish(data)
+        await self.async_notifications(data, data.heat, data.now)
         self.hass.bus.async_fire(EVENT_PLAN_UPDATED, {"entry_id": self.config_entry.entry_id, "reason": reason})
         return data
-
-    def _plan_buffer(self, timeline, now: datetime):
-        s = self.settings
-        cfg = s.buffer
-        cfg.min_t = float(self.controls["buffer_min_t"])
-        cfg.max_t = max(float(self.controls["buffer_max_t"]), cfg.min_t + 1)
-        cfg.comfort_penalty_pln_per_kh = 20.0 if self.controls["buffer_strategy"] == "comfort" else 5.0
-        current, _ = self.buffer_temperature()
-        outdoor = {w.start: w.get("temperature_2m") for w in self.local_weather if w.get("temperature_2m") is not None}
-        if (t_out := self.outdoor_temperature()[0]) is not None:
-            outdoor[floor_hour(now)] = t_out
-        cur_slot = timeline.at(now)
-        stale = (
-            current is None
-            or cur_slot is None
-            or cur_slot.source is PriceSource.UNAVAILABLE
-            or (
-                self.snapshot.fetched_at is not None
-                and now - self.snapshot.fetched_at > timedelta(hours=26)
-                and cur_slot.source is not PriceSource.ACTUAL_PSTRYK
-            )
-        )
-        plan = plan_buffer(
-            cfg,
-            s.cop,
-            now=now,
-            current_t=current if current is not None else cfg.target_t,
-            slots=timeline.buy,
-            outdoor_forecast=outdoor,
-            advisory=bool(self.controls["advisory_mode"]),
-            stale=stale,
-        )
-        if current is None:
-            _, source = self.buffer_temperature()
-            plan.optimization_reason = (
-                f"Brak świeżego odczytu MQTT temperatury bufora (>{s.input_max_age_min} min) – sterowanie lokalne"
-                if source == "mqtt_stale"
-                else "Brak odczytu temperatury bufora – sterowanie lokalne"
-            )
-        return plan
 
     def buffer_temperature(self) -> tuple[float | None, str]:
         """Current buffer temperature and its source: MQTT topic first, then HA entity."""
@@ -683,6 +777,7 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             for p in s.profiles
             if p.temperature_topic
         ]
+        specs += self.heat_input_specs()
         self.inputs = MqttInputs(
             self.hass, specs, max_age=timedelta(minutes=s.input_max_age_min), on_update=self._on_input
         )
@@ -697,6 +792,10 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         window is deferred (never dropped).
         """
         now = self._now()
+        if name == "hp_power" or name.startswith("heater:"):
+            self.integrate_power(now)
+            self.async_update_listeners()
+            return
         if not self._input_triggers(name, value, previous, now):
             self.async_update_listeners()
             return
@@ -720,13 +819,16 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
         if previous is None:
             return True
         data = self.data
-        if name == "buffer":
-            if data is not None and data.buffer is not None and data.buffer.steps:
-                step = next((st for st in data.buffer.steps if st.start <= now < st.start + timedelta(hours=1)), None)
+        if name in ("buffer", "buffer_bottom", "dhw_top", "dhw_bottom"):
+            storage = "dhw" if name.startswith("dhw") else "buffer"
+            plan = None if data is None else (data.dhw if storage == "dhw" else data.buffer)
+            mean = self.storage_layers(storage)["mean"]
+            if plan is not None and plan.steps and mean is not None:
+                step = next((st for st in plan.steps if st.start <= now < st.start + timedelta(hours=1)), None)
                 if step is not None:
                     frac = (now - step.start).total_seconds() / 3600
                     expected = step.temperature_start + (step.temperature_end - step.temperature_start) * frac
-                    return abs(value - expected) > 1.0
+                    return abs(mean - expected) > 1.0
             return abs(value - previous) > 1.0
         if name.startswith("device:"):
             profile = next((p for p in self.settings.profiles if f"device:{p.name}" == name), None)
@@ -763,7 +865,12 @@ class PstrykAICoordinator(DataUpdateCoordinator[PstrykAIData]):
             evcc=self.settings.mqtt_evcc,
             include_sell=self.settings.prosumer or bool(self.snapshot.sell),
         )
+        msgs += self.heat_messages(data.heat, now)
+        if data.spends is not None:
+            msgs += spend_messages(data.spends, now)
         sent = await self.publisher.async_publish(msgs, now)
+        for topic, payload in self.command_messages(data.heat):
+            await self.publisher.async_raw(topic, payload, retain=False)
         st = self.status["mqtt"]
         if sent:
             st.ok(now)

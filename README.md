@@ -1,6 +1,6 @@
 # Pstryk AI – Energy Intelligence & Optimization
 
-[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.3.0-blue)
+[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.4.0-blue)
 
 Home Assistant integration for Polish [Pstryk.pl](https://pstryk.pl) customers. It combines **confirmed Pstryk prices** with public market,
 power-system and weather data to build a **rolling 7-day (168 h) probabilistic price forecast**, finds the cheapest periods, plans flexible
@@ -21,6 +21,12 @@ loads and a **heat-pump buffer**, and publishes everything to Home Assistant and
   P10/P50/P90, confidence, live accuracy tracking.
 * Optimisation: cheapest windows across midnight/days, cheapest N hours, most expensive periods, uncertainty-aware postponement,
   device profiles with min run/off times (dynamic programming), thermal buffer MPC with COP(T_out, T_supply) and heat losses.
+* **Heat storages (v0.4)**: buffer and hot-water tank (CWU) with top/bottom sensors, electric/gas heaters with power steps, shared heat
+  pump with switching valve and CWU priority, ready-by times, legionella cycle, connection power limit – all optional.
+* **Pstryk spending**: today, yesterday, this month, month projection, previous month, last 12 months, cost breakdown; optional import
+  into Home Assistant long-term statistics (Energy dashboard).
+* Distribution tariff zones (G11/G12/G12w/G13) and optimisation on the all-in price; PV self-consumption; learning of heat demand,
+  losses, hot-water profile and COP; measured heat-pump consumption and cost; notifications; MQTT heartbeat.
 * **Temperatures from exact MQTT topics** (e.g. published by Loxone): buffer, outdoor and per-device values (DHW tank, EV SOC) with
   JSON-key support, staleness protection and automatic re-planning; devices that already reached their target are not scheduled.
 * Event-aware scheduler: 00:05 rollover, 06:00/18:00 weather, 10:45 Fixing I, **13:00 main calculation**, retries until Pstryk confirms,
@@ -35,7 +41,7 @@ source, the 48-hour plan (prices, cheapest window, buffer heating and device sch
 P10–P90 range, the buffer decision with the planned temperature, device schedules, meter data, forecast quality and data-source status.
 
 ![Pstryk AI panel](docs/images/panel.jpg)
-![Pstryk AI panel – forecast](docs/images/panel-forecast.jpg)
+![Pstryk AI panel – spending](docs/images/panel-spends.jpg)
 
 ## Measured forecast quality
 Rolling-origin backtest on public data (97 origins, 2026): MAE ≈ 85–95 PLN/MWh for days 1–7 with PSE + weather inputs vs 125–136 PLN/MWh
@@ -49,7 +55,7 @@ for the seasonal baseline. Read the caveats in [docs/FORECASTING.md](docs/FORECA
 ## Documentation
 [Installation](docs/INSTALLATION.md) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) ·
 [Data sources & licenses](docs/API_SOURCES.md) · [MQTT topics](docs/MQTT_TOPICS.md) · [Forecasting](docs/FORECASTING.md) ·
-[Optimization](docs/OPTIMIZATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Research](docs/RESEARCH.md) ·
+[Optimization](docs/OPTIMIZATION.md) · [Heat storages & CWU](docs/HEAT_STORAGES.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Research](docs/RESEARCH.md) ·
 [Loxone example](examples/loxone.md) · [Changelog](CHANGELOG.md)
 
 ## Safety

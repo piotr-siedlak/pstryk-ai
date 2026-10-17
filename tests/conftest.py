@@ -37,11 +37,13 @@ def pstryk_frames(
     sell: bool = True,
     meter: bool = True,
     live_index: int | None = None,
+    step: timedelta = timedelta(hours=1),
 ) -> list[dict[str, Any]]:
     """Frames shaped like the unified-metrics response (fields per API docs)."""
     frames = []
+    scale = step / timedelta(hours=1)
     for i in range(hours):
-        start = day_start_utc + timedelta(hours=i)
+        start = day_start_utc + step * i
         value = price if price is not None else round(base + 0.25 * math.sin(i / 24 * 2 * math.pi), 4)
         pricing = {
             "price_gross": value,
@@ -54,19 +56,21 @@ def pstryk_frames(
         metrics: dict[str, Any] = {"pricing": pricing}
         if meter:
             metrics["meterValues"] = {
-                "energy_active_import_register": 0.8,
-                "energy_active_export_register": 0.1,
-                "energy_balance": 0.7,
+                "energy_active_import_register": round(0.8 * scale, 3),
+                "energy_active_export_register": round(0.1 * scale, 3),
+                "energy_balance": round(0.7 * scale, 3),
             }
             metrics["cost"] = {
-                "energy_import_cost": round(0.8 * value, 4),
-                "energy_sold_value": 0.03,
-                "energy_balance_value": round(0.03 - 0.8 * value, 4),
-                "vat": 0.05,
+                "energy_import_cost": round(0.8 * value * scale, 4),
+                "energy_sold_value": round(0.03 * scale, 4),
+                "energy_balance_value": round((0.03 - 0.8 * value) * scale, 4),
+                "energy_cost_net": round(0.5 * value * scale, 4),
+                "var_dist_cost_net": round(0.2 * scale, 4),
+                "vat": round(0.05 * scale, 4),
             }
         frame = {
             "start": start.isoformat().replace("+00:00", "Z"),
-            "end": (start + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+            "end": (start + step).isoformat().replace("+00:00", "Z"),
             "metrics": metrics,
         }
         if live_index == i:

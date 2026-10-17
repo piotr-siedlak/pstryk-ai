@@ -157,11 +157,17 @@ class BufferStep:
     cop: float
     cost: float
     source: str
+    heater_kw: float = 0.0  # heat from the auxiliary heater (kWh_th in this hour)
+    hp_kwh: float = 0.0  # heat from the heat pump (kWh_th)
+    fuel_cost: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "start": iso(self.start),
             "heat": round(self.heat_fraction, 2),
+            "hp_kwh": round(self.hp_kwh, 3),
+            "heater_kwh": round(self.heater_kw, 3),
+            "fuel_cost": round(self.fuel_cost, 4),
             "t_start": round(self.temperature_start, 2),
             "t_end": round(self.temperature_end, 2),
             "electric_kwh": round(self.electric_kwh, 3),
@@ -194,6 +200,15 @@ class BufferPlan:
     mode: str = "advisory"
     feasible: bool = True
     steps: list[BufferStep] = field(default_factory=list)
+    name: str = "buffer"
+    heater_should_run: bool = False
+    heater_power_kw: float = 0.0
+    heater_next_start: datetime | None = None
+    hp_hours: list[datetime] = field(default_factory=list)
+    legionella_at: datetime | None = None
+    soc_pct: float | None = None
+    stored_energy_kwh: float | None = None
+    fuel_cost_pln: float = 0.0
 
     def to_dict(self, include_steps: bool = True) -> dict[str, Any]:
         data = {
@@ -213,6 +228,13 @@ class BufferPlan:
             "optimization_reason": self.optimization_reason,
             "mode": self.mode,
             "feasible": self.feasible,
+            "heater_should_run": self.heater_should_run,
+            "heater_power_kw": round(self.heater_power_kw, 2),
+            "heater_next_start": iso(self.heater_next_start),
+            "legionella_at": iso(self.legionella_at),
+            "soc_pct": None if self.soc_pct is None else round(self.soc_pct, 1),
+            "stored_energy_kwh": None if self.stored_energy_kwh is None else round(self.stored_energy_kwh, 2),
+            "fuel_cost_pln": round(self.fuel_cost_pln, 3),
         }
         if include_steps:
             data["schedule"] = [s.to_dict() for s in self.steps]

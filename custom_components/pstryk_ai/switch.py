@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
@@ -27,10 +28,52 @@ SWITCHES: tuple[SwitchEntityDescription, ...] = (
 )
 
 
+# runtime switches for optional features – only created when the feature is configured
+FEATURE_SWITCHES: tuple[tuple[SwitchEntityDescription, Callable[[Any], bool]], ...] = (
+    (
+        SwitchEntityDescription(
+            key="dhw_enabled", translation_key="dhw_enabled", entity_category=EntityCategory.CONFIG
+        ),
+        lambda s: s.ext.dhw.enabled,
+    ),
+    (
+        SwitchEntityDescription(
+            key="buffer_heater_enabled", translation_key="buffer_heater_enabled", entity_category=EntityCategory.CONFIG
+        ),
+        lambda s: s.ext.buffer_heater.enabled,
+    ),
+    (
+        SwitchEntityDescription(
+            key="dhw_heater_enabled", translation_key="dhw_heater_enabled", entity_category=EntityCategory.CONFIG
+        ),
+        lambda s: s.ext.dhw.enabled and s.ext.dhw_heater.enabled,
+    ),
+    (
+        SwitchEntityDescription(key="pv_enabled", translation_key="pv_enabled", entity_category=EntityCategory.CONFIG),
+        lambda s: s.ext.pv_enabled,
+    ),
+    (
+        SwitchEntityDescription(
+            key="power_limit_enabled", translation_key="power_limit_enabled", entity_category=EntityCategory.CONFIG
+        ),
+        lambda s: s.ext.power_limit_enabled,
+    ),
+    (
+        SwitchEntityDescription(
+            key="optimize_all_in", translation_key="optimize_all_in", entity_category=EntityCategory.CONFIG
+        ),
+        lambda s: s.ext.distribution is not None or s.tariff.var_distribution_net > 0,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: PstrykAIConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    async_add_entities(PstrykSwitch(entry.runtime_data, d) for d in SWITCHES)
+    settings = entry.runtime_data.settings
+    entities = [PstrykSwitch(entry.runtime_data, d) for d in SWITCHES]
+    entities += [PstrykSwitch(entry.runtime_data, d) for d, ok in FEATURE_SWITCHES if ok(settings)]
+    async_add_entities(entities)
 
 
 class PstrykSwitch(PstrykAIEntity, SwitchEntity):

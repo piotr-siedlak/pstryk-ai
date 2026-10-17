@@ -97,7 +97,7 @@ class PstrykAIPanel extends HTMLElement {
     return this._st(key, domain)?.attributes?.[attr];
   }
   _signature() {
-    const keys = ["last_update", "current_buy_price", "buffer_plan_reason", "forecast_7d", "average_tomorrow", "cheapest_3h"];
+    const keys = ["last_update", "current_buy_price", "buffer_plan_reason", "dhw_plan_reason", "forecast_7d", "average_tomorrow", "cheapest_3h", "avg_daily_cost"];
     return keys.map((k) => this._st(k)?.last_updated || "").join("|") + (this._st("buffer_should_heat", "binary_sensor")?.state || "");
   }
 
@@ -178,6 +178,7 @@ class PstrykAIPanel extends HTMLElement {
       <div class="grid top">
         ${this._nowCard()}
         ${this._bufferCard()}
+        ${this._st("dhw_plan_reason") ? this._storageCard("dhw") : ""}
       </div>
       ${this._planCard()}
       ${this._forecastCard()}
@@ -185,6 +186,7 @@ class PstrykAIPanel extends HTMLElement {
         ${this._windowsCard()}
         ${this._devicesCard()}
       </div>
+      ${this._spendsCard()}
       <div class="grid">
         ${this._meterCard()}
         ${this._qualityCard()}
@@ -229,58 +231,120 @@ class PstrykAIPanel extends HTMLElement {
       <div class="chips">
         <span class="chip ${cheap ? "chip-ok" : "chip-muted"}">${cheap ? "Tania energia teraz" : "Energia nie jest tania"}</span>
         <span class="chip ${tomorrow ? "chip-ok" : "chip-warn"}">${tomorrow ? "Ceny na jutro potwierdzone" : "Jutro: prognoza (Pstryk jeszcze nie opublikował)"}</span>
+        ${this._zoneChip()}
       </div>
     </div>`;
   }
 
-  // ------------------------------------------------------------ buffer card
+  // ------------------------------------------------------------ storage cards
+  _zoneChip() {
+    const z = this._st("distribution_zone");
+    if (!z) return "";
+    const label = { flat: "stała", peak: "szczyt / dzienna", offpeak: "pozaszczyt / nocna", peak2: "szczyt popołudniowy" }[z.state] || z.state;
+    return `<span class="chip ${z.state === "offpeak" ? "chip-ok" : "chip-info"}">Dystrybucja: ${esc(label)}</span>`;
+  }
+
   _bufferCard() {
-    const heat = this._st("buffer_should_heat", "binary_sensor");
-    const plan = this._st("buffer_target_temperature")?.attributes || {};
-    const reason = this._st("buffer_plan_reason");
+    return this._storageCard("buffer");
+  }
+
+  _storageCard(kind) {
+    const isDhw = kind === "dhw";
+    const title = isDhw ? "Ciepła woda (CWU)" : "Bufor ciepła";
+    const heat = this._st(isDhw ? "dhw_should_heat" : "buffer_should_heat", "binary_sensor");
+    const reason = this._st(isDhw ? "dhw_plan_reason" : "buffer_plan_reason");
+    const planSensor = this._st(isDhw ? "dhw_target_temperature" : "buffer_target_temperature");
+    const plan = planSensor?.attributes || {};
     if (!heat || heat.state === "unavailable" || heat.state === "unknown" || !reason) {
-      return `<div class="card buffer"><div class="card-head"><h2>Bufor ciepła</h2></div>
-        <p class="muted">Optymalizacja bufora jest wyłączona albo brak danych. Włącz ją przełącznikiem
-        <i>Optymalizacja bufora</i> i wskaż czujnik temperatury bufora w opcjach integracji.</p></div>`;
+      return `<div class="card buffer"><div class="card-head"><h2>${title}</h2></div>
+        <p class="muted">Optymalizacja jest wyłączona albo brak danych. Włącz ją i wskaż czujniki temperatury w opcjach integracji.</p></div>`;
     }
     const on = heat.state === "on";
+    const heaterOn = !!plan.heater_should_run;
+    const heaterKw = num(plan.heater_power_kw);
     const mode = MODE[heat.attributes?.mode] || MODE.advisory;
     const steps = reason.attributes?.schedule || [];
-    const measured = this._st("buffer_temperature");
-    const current = num(measured?.state) ?? (steps.length ? num(steps[0].t_start) : null);
-    const srcLabel = { mqtt: "z MQTT", entity: "z czujnika HA", mqtt_stale: "MQTT – brak świeżego odczytu", none: "brak odczytu" }[
-      measured?.attributes?.source
-    ] || "";
+    const topS = this._st(isDhw ? "dhw_top_temperature" : "buffer_temperature");
+    const botS = this._st(isDhw ? "dhw_bottom_temperature" : "buffer_bottom_temperature");
+    const top = num(topS?.state);
+    const bottom = num(botS?.state);
+    const current = top !== null && bottom !== null ? (top + bottom) / 2 : top ?? (steps.length ? num(steps[0].t_start) : null);
+    const src = topS?.attributes?.source ?? topS?.attributes?.top_source;
+    const srcLabel = { mqtt: "z MQTT", entity: "z czujnika HA", mqtt_stale: "MQTT – brak świeżego odczytu", none: "brak odczytu" }[src] || "";
+    const soc = num(plan.soc_pct ?? this._val(isDhw ? "dhw_soc" : "buffer_soc"));
+    const valve = this._st("valve_position");
+    const valveLabel = { buffer: "pompa → bufor", dhw: "pompa → CWU", idle: "pompa – postój" }[valve?.state];
+    let title2 = on ? "Grzej teraz" : "Nie grzej teraz";
+    let icon = on ? "🔥" : "⏸";
+    if (heaterOn && on) { title2 = `Pompa + grzałka ${fmt(heaterKw, 1)} kW`; icon = "🔥⚡"; }
+    else if (heaterOn) { title2 = `Grzałka teraz ${fmt(heaterKw, 1)} kW`; icon = "⚡"; }
+    const leg = isDhw ? this._st("legionella") : null;
     return `<div class="card buffer">
-      <div class="card-head"><h2>Bufor ciepła</h2><span class="chip ${mode.cls}">${esc(mode.label)}</span></div>
-      <div class="decision ${on ? "heat" : "idle"}" data-more="${esc(heat.entity_id)}">
-        <div class="icon">${on ? "🔥" : "⏸"}</div>
-        <div><div class="dec-title">${on ? "Grzej teraz" : "Nie grzej teraz"}</div>
-        <div class="dec-sub">${esc(reason.state || "")}</div></div>
+      <div class="card-head"><h2>${title}</h2><span class="chips">
+        ${valve && valveLabel ? `<span class="chip chip-info">${esc(valveLabel)}</span>` : ""}
+        <span class="chip ${mode.cls}">${esc(mode.label)}</span></span></div>
+      <div class="storage-row">
+        ${this._layerBar(top, bottom, soc, isDhw)}
+        <div class="storage-main">
+          <div class="decision ${on || heaterOn ? "heat" : "idle"}" data-more="${esc(heat.entity_id)}">
+            <div class="icon">${icon}</div>
+            <div><div class="dec-title">${esc(title2)}</div><div class="dec-sub">${esc(reason.state || "")}</div></div>
+          </div>
+          <div class="kv">
+            <div data-more="${esc(topS?.entity_id || "")}"><span>${bottom !== null ? "Średnio" : "Teraz"}</span><b>${fmt(current, 1)} °C</b><small>${esc(srcLabel)}</small></div>
+            <div><span>Cel</span><b>${fmt(planSensor?.state, 1)} °C</b></div>
+            <div><span>Następne grzanie</span><b>${esc(plan.recommended_start ? this._dayTime(plan.recommended_start) : "–")}</b>
+              <small>${plan.recommended_stop ? `do ${esc(this._time(plan.recommended_stop))}` : ""}</small></div>
+            <div><span>Koszt 24 h</span><b>${fmt(plan.expected_cost_pln, 2)} zł</b>${num(plan.fuel_cost_pln) ? `<small>w tym gaz ${fmt(plan.fuel_cost_pln, 2)} zł</small>` : ""}</div>
+            <div><span>Oszczędność</span><b>${fmt(plan.expected_savings_pln, 2)} zł</b><small>vs termostat</small></div>
+            ${plan.heater_next_start ? `<div><span>Grzałka</span><b>${esc(this._dayTime(plan.heater_next_start))}</b></div>` : ""}
+            ${leg ? `<div data-more="${esc(leg.entity_id)}"><span>Antylegionella</span><b>${esc(leg.state && leg.state !== "unknown" ? this._dayTime(leg.state) : "–")}</b>
+              <small>${leg.attributes?.planned_at ? `plan: ${esc(this._dayTime(leg.attributes.planned_at))}` : ""}</small></div>` : ""}
+          </div>
+        </div>
       </div>
-      <div class="kv">
-        <div data-more="${esc(measured?.entity_id || "")}"><span>Bufor teraz</span><b>${fmt(current, 1)} °C</b><small>${esc(srcLabel)}</small></div>
-        <div><span>Cel</span><b>${fmt(this._val("buffer_target_temperature"), 1)} °C</b></div>
-        <div><span>Następne grzanie</span><b>${esc(plan.recommended_start ? this._dayTime(plan.recommended_start) : "–")}</b>
-          <small>${plan.recommended_stop ? `do ${esc(this._time(plan.recommended_stop))}` : ""}</small></div>
-        <div><span>Koszt 24 h</span><b>${fmt(this._val("buffer_expected_cost"), 2)} zł</b></div>
-        <div><span>Oszczędność</span><b>${fmt(this._val("buffer_savings"), 2)} zł</b><small>vs termostat</small></div>
-      </div>
-      ${this._tempChart(steps)}
+      ${this._tempChart(steps, isDhw)}
     </div>`;
   }
 
-  _tempChart(steps) {
+  _layerBar(top, bottom, soc, isDhw) {
+    const color = (t) => {
+      if (t === null) return "var(--c-muted)";
+      const x = Math.max(0, Math.min(1, (t - 25) / 40));
+      const hue = 220 - x * 220; // blue -> red
+      return `hsl(${hue} 75% 50%)`;
+    };
+    const b = bottom ?? top;
+    return `<div class="layers" title="${isDhw ? "CWU" : "Bufor"}: góra ${fmt(top, 1)} °C, dół ${fmt(bottom, 1)} °C">
+      <div class="tank" style="background: linear-gradient(to bottom, ${color(top)}, ${color(b)})">
+        <span class="t-top">${fmt(top, 1)}°</span>
+        ${bottom !== null ? `<span class="t-bot">${fmt(bottom, 1)}°</span>` : ""}
+      </div>
+      <div class="soc">${soc !== null ? `${Math.round(soc)}%` : "–"}</div>
+    </div>`;
+  }
+
+  _tempChart(steps, isDhw = false) {
     if (!steps.length) return "";
     const W = 560, H = 120, P = { l: 34, r: 8, t: 8, b: 18 };
     const temps = steps.flatMap((s) => [num(s.t_start), num(s.t_end)]).filter((v) => v !== null);
-    const minT = num(this._val("buffer_min_t", "number"));
-    const maxT = num(this._val("buffer_max_t", "number"));
+    const plan = this._attr(isDhw ? "dhw_target_temperature" : "buffer_target_temperature") || {};
+    const minT = isDhw ? null : num(this._val("buffer_min_t", "number"));
+    const maxT = isDhw ? null : num(this._val("buffer_max_t", "number"));
     const lo = Math.floor(Math.min(...temps, minT ?? Infinity) - 2);
     const hi = Math.ceil(Math.max(...temps, maxT ?? -Infinity) + 2);
     const x = (i) => P.l + (i / steps.length) * (W - P.l - P.r);
     const y = (t) => P.t + (1 - (t - lo) / (hi - lo || 1)) * (H - P.t - P.b);
-    const bars = steps
+    const heaterBars = steps
+      .map((s, i) =>
+        num(s.heater_kwh) > 0
+          ? `<rect class="heaterbar" x="${x(i)}" y="${P.t}" width="${Math.max(1, x(i + 1) - x(i) - 0.5)}" height="${(H - P.t - P.b) / 3}"><title>${esc(
+              this._dayTime(s.start)
+            )}: grzałka ${fmt(s.heater_kwh, 1)} kWh</title></rect>`
+          : ""
+      )
+      .join("");
+    const bars = heaterBars + steps
       .map((s, i) =>
         s.heat > 0
           ? `<rect class="heatbar" x="${x(i)}" y="${P.t}" width="${Math.max(1, x(i + 1) - x(i) - 0.5)}" height="${H - P.t - P.b}"><title>${esc(
@@ -295,7 +359,8 @@ class PstrykAIPanel extends HTMLElement {
     const ticks = steps
       .map((s, i) => (i % 6 === 0 ? `<text class="axis" x="${x(i)}" y="${H - 4}">${esc(this._time(s.start))}</text>` : ""))
       .join("");
-    return `<div class="chart-title">Temperatura bufora i grzanie (plan ${steps.length} h)</div>
+    void plan;
+    return `<div class="chart-title">Temperatura ${isDhw ? "CWU" : "bufora"} i grzanie (plan ${steps.length} h)</div>
       <svg viewBox="0 0 ${W} ${H}" class="chart">${bars}${limit(minT, "lim", "minimum")}${limit(maxT, "lim", "maksimum")}
       <polyline class="templine" points="${pts.join(" ")}"/>${ticks}</svg>`;
   }
@@ -408,9 +473,23 @@ class PstrykAIPanel extends HTMLElement {
 
   _lanes() {
     const lanes = [];
-    const steps = this._attr("buffer_plan_reason", "schedule") || [];
-    const heat = steps.filter((s) => s.heat > 0).map((s) => ({ start: s.start, note: `${fmt(s.electric_kwh, 2)} kWh, COP ${fmt(s.cop, 1)}` }));
-    if (steps.length) lanes.push({ name: "Grzanie bufora", short: "Bufor", cls: "lane-heat", hours: heat });
+    for (const [key, label] of [["buffer_plan_reason", "bufor"], ["dhw_plan_reason", "CWU"]]) {
+      const steps = this._attr(key, "schedule") || [];
+      if (!steps.length) continue;
+      const hp = steps.filter((s) => (num(s.hp_kwh) ?? (s.heat > 0 ? 1 : 0)) > 0).map((s) => ({ start: s.start, note: `COP ${fmt(s.cop, 1)}` }));
+      lanes.push({ name: `Pompa ciepła → ${label}`, short: `PC→${label}`, cls: "lane-heat", hours: hp });
+      const heater = steps.filter((s) => num(s.heater_kwh) > 0).map((s) => ({ start: s.start, note: `${fmt(s.heater_kwh, 1)} kWh` }));
+      if (heater.length || this._st(key === "buffer_plan_reason" ? "buffer_heater_power" : "dhw_heater_power"))
+        lanes.push({ name: `Grzałka ${label}`, short: `Grzałka ${label}`, cls: "lane-heater", hours: heater });
+    }
+    const pv = this._attr("pv_production_today", "series") || [];
+    if (pv.length)
+      lanes.push({
+        name: "Nadwyżka PV",
+        short: "PV",
+        cls: "lane-pv",
+        hours: pv.filter((p) => num(p.surplus) > 0.05).map((p) => ({ start: p.start, note: `${fmt(p.surplus, 2)} kWh` })),
+      });
     for (const st of this._schedules()) {
       lanes.push({
         name: st.attributes.profile || st.attributes.friendly_name,
@@ -585,6 +664,59 @@ class PstrykAIPanel extends HTMLElement {
       <table><thead><tr><th>Profil</th><th>Start</th><th class="r">Koszt</th><th class="r"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
+  // ------------------------------------------------------------ spends
+  _spendsCard() {
+    const days = this._attr("avg_daily_cost", "days");
+    if (!days) return "";
+    const months = this._attr("cost_12_months", "months") || [];
+    const proj = this._st("projected_month_cost");
+    const tm = proj?.attributes?.this_month || {};
+    const breakdown = proj?.attributes?.breakdown_month || {};
+    const cell = (label, value, sub = "") => `<div><span>${label}</span><b>${value}</b><small>${sub}</small></div>`;
+    const bLabels = { energy_cost_net: "energia (netto)", var_dist_cost_net: "dystrybucja zmienna", fix_dist_cost_net: "dystrybucja stała",
+      service_cost_net: "opłata handlowa", power_fee_cost_net: "opłata mocowa", excise: "akcyza", vat: "VAT" };
+    const bRows = Object.entries(breakdown).filter(([, v]) => num(v)).map(([k, v]) => `<tr><td>${esc(bLabels[k] || k)}</td><td class="r">${fmt(v, 2)} zł</td></tr>`).join("");
+    return `<div class="card">
+      <div class="card-head"><h2>Wydatki na energię (Pstryk)</h2><span class="muted">dane rozliczeniowe Pstryk</span></div>
+      <div class="kv">
+        ${cell("Dziś", `${fmt(this._val("cost_today"), 2)} zł`, `${fmt(this._val("energy_import_today"), 1)} kWh`)}
+        ${cell("Wczoraj", `${fmt(this._val("cost_yesterday"), 2)} zł`)}
+        ${cell("Ten miesiąc", `${fmt(tm.cost, 2)} zł`, `${fmt(tm.import_kwh, 0)} kWh`)}
+        ${cell("Prognoza miesiąca", `${fmt(proj?.state, 2)} zł`, `śr. ${fmt(this._val("avg_daily_cost"), 2)} zł/dzień`)}
+        ${cell("Poprzedni miesiąc", `${fmt(this._val("cost_previous_month"), 2)} zł`)}
+        ${this._st("cost_12_months") ? cell("12 miesięcy", `${fmt(this._val("cost_12_months"), 0)} zł`) : ""}
+        ${this._st("hp_cost_today") ? cell("Pompa ciepła dziś",
+          num(this._val("hp_cost_today")) === null ? "–" : `${fmt(this._val("hp_cost_today"), 2)} zł`,
+          num(this._val("hp_energy_today")) === null ? "zbieranie pomiaru…" : `${fmt(this._val("hp_energy_today"), 1)} kWh (pomiar)`) : ""}
+      </div>
+      <div class="cols2">
+        <div><div class="chart-title">Koszt dzienny (zł)</div>${this._barChart(days.map((d) => ({ label: d.period.slice(8, 10), title: d.period, value: num(d.cost), live: d.live })))}</div>
+        <div><div class="chart-title">Koszt miesięczny (zł)</div>${this._barChart(months.map((m) => ({ label: m.period.slice(5, 7), title: m.period, value: num(m.cost) })))}</div>
+      </div>
+      ${bRows ? `<details><summary class="muted">Składniki kosztu w tym miesiącu</summary><table class="compact">${bRows}</table></details>` : ""}
+    </div>`;
+  }
+
+  _barChart(items) {
+    const data = items.filter((i) => i.value !== null);
+    if (!data.length) return `<p class="muted small">Brak danych</p>`;
+    const W = 480, H = 130, P = { l: 34, r: 4, t: 8, b: 18 };
+    const hi = Math.max(...data.map((d) => d.value), 0.01) * 1.1;
+    const bw = (W - P.l - P.r) / data.length;
+    const y = (v) => P.t + (1 - v / hi) * (H - P.t - P.b);
+    let svg = "";
+    const step = niceStep(hi / 3);
+    for (let v = 0; v <= hi; v += step)
+      svg += `<line class="grid" x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${P.l - 4}" y="${y(v) + 3}" text-anchor="end">${Math.round(v)}</text>`;
+    data.forEach((d, i) => {
+      const x = P.l + i * bw;
+      svg += `<rect class="bar src-actual${d.live ? " live" : ""}" x="${x + 1}" y="${y(Math.max(d.value, 0))}" width="${Math.max(1, bw - 2)}" height="${Math.max(1, y(0) - y(Math.max(d.value, 0)))}"><title>${esc(d.title)}: ${fmt(d.value, 2)} zł</title></rect>`;
+      if (data.length <= 14 || i % Math.ceil(data.length / 12) === 0)
+        svg += `<text class="axis" x="${x + bw / 2}" y="${H - 4}" text-anchor="middle">${esc(d.label)}</text>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" class="chart">${svg}</svg>`;
+  }
+
   // ------------------------------------------------------------ meter
   _meterCard() {
     const cell = (label, key, unit, d = 2) => `<div data-more="${esc(this._st(key)?.entity_id || "")}"><span>${label}</span><b>${fmt(this._val(key), d)} ${unit}</b></div>`;
@@ -621,7 +753,9 @@ class PstrykAIPanel extends HTMLElement {
       <span><i class="sw src-market"></i>opublikowana cena giełdowa (szacunek z taryfą)</span>
       <span><i class="sw src-forecast"></i>prognoza (kreska = zakres P10–P90)</span>
       <span><i class="sw hl-cheap-sw"></i>najtańsze 3 h</span>
-      <span><i class="sw lane-heat"></i>grzanie bufora</span>
+      <span><i class="sw lane-heat"></i>pompa ciepła</span>
+      <span><i class="sw lane-heater"></i>grzałka</span>
+      <span><i class="sw lane-pv"></i>nadwyżka PV</span>
       <span><i class="sw lane-dev"></i>praca urządzenia</span>
     </div>`;
   }
@@ -703,6 +837,17 @@ h3 { font-size:14px; margin:4px 0 8px; color: var(--secondary-text-color); font-
 .lane-bg { fill: color-mix(in srgb, var(--c-muted) 10%, transparent); }
 .lane-lbl { font-size:11px; fill: var(--secondary-text-color); }
 .lane-on.lane-heat { fill: var(--c-exp); } .lane-on.lane-dev { fill: var(--c-cheap); }
+.lane-on.lane-heater { fill: #8e24aa; } .lane-on.lane-pv { fill: #fbc02d; }
+.heaterbar { fill: color-mix(in srgb, #8e24aa 30%, transparent); }
+.bar.live { opacity: .55; }
+.storage-row { display:flex; gap:14px; align-items:stretch; }
+.storage-main { flex:1; min-width:0; }
+.layers { display:flex; flex-direction:column; align-items:center; gap:6px; }
+.tank { width:46px; flex:1; min-height:120px; border-radius:12px; position:relative; border:2px solid var(--divider-color); }
+.t-top, .t-bot { position:absolute; left:50%; transform:translateX(-50%); font-size:11px; color:#fff; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.6); }
+.t-top { top:6px; } .t-bot { bottom:6px; }
+.soc { font-size:13px; font-weight:600; }
+details { margin-top:8px; } summary { cursor:pointer; }
 .band { fill: color-mix(in srgb, var(--c-forecast) 20%, transparent); stroke:none; }
 .seg { stroke-width:2.2; fill:none; }
 .seg.src-actual { stroke: var(--c-actual); } .seg.src-market { stroke: var(--c-market); }
@@ -730,6 +875,7 @@ table.compact td, table.compact th { padding:3px 4px; font-size:12px; }
 .sw.src-forecast { background: color-mix(in srgb, var(--c-forecast) 45%, transparent); border:1px solid var(--c-forecast); }
 .sw.hl-cheap-sw { background: color-mix(in srgb, var(--c-cheap) 30%, transparent); }
 .sw.lane-heat { background: var(--c-exp); } .sw.lane-dev { background: var(--c-cheap); }
+.sw.lane-heater { background: #8e24aa; } .sw.lane-pv { background: #fbc02d; }
 .empty { max-width:640px; margin:40px auto; }
 @media (max-width: 600px) {
   .content { padding:8px; gap:8px; } .grid { grid-template-columns: 1fr; } .big { font-size:40px; }

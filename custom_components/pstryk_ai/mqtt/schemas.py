@@ -65,6 +65,22 @@ TOPICS: tuple[str, ...] = (
     "api/pse/status",
     "api/weather/status",
     "evcc/prices",
+    "optimizer/buffer/heater/should_run",
+    "optimizer/buffer/heater/power",
+    "optimizer/buffer/soc",
+    "optimizer/dhw/should_heat",
+    "optimizer/dhw/mode",
+    "optimizer/dhw/target_temperature",
+    "optimizer/dhw/next_start",
+    "optimizer/dhw/schedule",
+    "optimizer/dhw/heater/should_run",
+    "optimizer/dhw/heater/power",
+    "optimizer/dhw/soc",
+    "optimizer/valve",
+    "spends/summary",
+    "spends/daily",
+    "spends/monthly",
+    "heartbeat",
 )
 
 _INVALID = set("#+\0")

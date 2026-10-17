@@ -1,30 +1,42 @@
-"""Thermal buffer optimiser (model-predictive, dynamic programming).
+"""Thermal storage optimiser (model-predictive, dynamic programming).
 
-State: buffer temperature on a 0.5 K grid + compressor run/off counters.
-Each hour the heat pump is either off or on at nominal thermal power (the
-on-hour is truncated when the buffer would exceed its maximum temperature).
+Used for the heating buffer and for the domestic hot-water tank (CWU). One
+model, different configuration:
+
+* State: mean storage temperature on a 0.5 K grid (the exact temperature of the
+  cheapest path is carried along) + heat-pump run/off counters + an optional
+  "legionella reached" flag.
+* Actions per hour: heat pump on/off (if allowed in that hour – a shared heat
+  pump with a switching valve can serve only one storage at a time) and an
+  auxiliary heater stage (electric or gas, several power steps).
 
 Energy balance per hour (kWh_th):
 
-    C · ΔT = Q_hp − Q_demand(T_out) − U_loss · (T_buffer − T_room)
+    C · ΔT = Q_hp + Q_heater − Q_demand − U_loss · (T − T_room)
     C      = volume_l · 0.001163 kWh/(l·K)
 
-Electricity = Q_hp / COP(T_out, T_supply ≈ T_buffer + 5 K).
+* Heat pump electricity = Q_hp / COP(T_out, T_supply ≈ T + 5 K); the heat pump
+  cannot heat above ``hp_max_t``.
+* Electric heater electricity = Q_heater / efficiency; gas heater fuel cost =
+  Q_heater / efficiency · fuel_price.
+* Electricity cost uses the (risk-adjusted) buy price; with PV surplus the first
+  ``surplus`` kWh of the hour are valued at the sell price (self-consumption).
+* Optional per-hour electric power cap (connection limit minus other loads).
 
-The objective is electricity cost (risk-adjusted price for forecast slots)
-plus a comfort penalty below the minimum temperature and a small start
-penalty, minus the value of heat left in the buffer at the end of the
-horizon. The plan is re-optimised every hour (receding horizon) and whenever
-the measured temperature deviates from the plan.
+Penalties: below minimum temperature (comfort), below a "ready by" temperature
+at a given time (e.g. hot water at 06:00), missing the legionella temperature
+before its deadline, compressor starts. A terminal value rewards heat left in
+the storage. Top/bottom sensors are used for the current state: mean = (top +
+bottom) / 2, and the comfort check uses the top layer (mean + stratification).
 
-SAFETY: this module only produces advice. Hardware thermostats, over-
-temperature protection and manufacturer limits are never bypassed.
+SAFETY: advice only. Hardware thermostats, over-temperature protection and
+manufacturer limits are never bypassed.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import math
 from zoneinfo import ZoneInfo
@@ -39,6 +51,7 @@ WATER_KWH_PER_L_K = 0.001163
 GRID_K = 0.5
 ROOM_T = 20.0
 SUPPLY_DELTA = 5.0
+HEATER_USE_PENALTY = 0.005  # PLN per kWh_th – prefers the heat pump when costs are equal
 
 
 def thermal_capacity_kwh_per_k(volume_l: float) -> float:
@@ -47,6 +60,33 @@ def thermal_capacity_kwh_per_k(volume_l: float) -> float:
 
 def thermal_energy_kwh(volume_l: float, delta_k: float) -> float:
     return volume_l * WATER_KWH_PER_L_K * delta_k
+
+
+@dataclass(slots=True)
+class HeaterConfig:
+    """Auxiliary heater of a storage (electric element or gas boiler)."""
+
+    kind: str = "electric"  # electric | gas
+    steps_kw: list[float] = field(default_factory=lambda: [3.0])  # heat output per stage
+    efficiency: float = 1.0
+    fuel_price: float = 0.35  # PLN per kWh of fuel (gas)
+    max_t: float | None = None  # None = storage max_t
+
+    @property
+    def stages(self) -> list[float]:
+        return [0.0, *sorted(s for s in self.steps_kw if s > 0)]
+
+    @property
+    def is_electric(self) -> bool:
+        return self.kind != "gas"
+
+
+@dataclass(slots=True)
+class ReadyConstraint:
+    """Storage must have at least ``min_t`` (top layer) at ``at``."""
+
+    at: datetime
+    min_t: float
 
 
 @dataclass(slots=True)
@@ -67,6 +107,18 @@ class BufferConfig:
     start_penalty_pln: float = 0.2
     risk_aversion: float = 0.3
     max_horizon_h: int = 72
+    # --- generalisation (v0.4)
+    name: str = "buffer"
+    hp_enabled: bool = True
+    hp_max_t: float | None = None  # heat pump supply limit (None = max_t)
+    heater: HeaterConfig | None = None
+    demand_kw: Sequence[float] | None = None  # per-hour demand override (e.g. hot-water draw)
+    ready: list[ReadyConstraint] = field(default_factory=list)
+    ready_penalty_pln_per_k: float = 20.0
+    legionella_t: float | None = None
+    legionella_deadline_h: int = 24
+    legionella_penalty_pln: float = 30.0
+    stratification_k: float = 0.0  # (top − bottom) / 2 measured now; top ≈ mean + this
 
     @property
     def capacity(self) -> float:
@@ -83,57 +135,199 @@ def heat_demand_kw(cfg: BufferConfig, t_out: float) -> float:
     return cfg.building_kw_per_k * max(0.0, cfg.base_t - t_out)
 
 
-def _step(cfg: BufferConfig, cop: CopModel, t: float, on: bool, t_out: float) -> tuple[float, float, float, float]:
-    """Return (t_next, q_hp_kwh, electric_kwh, cop) for one hour."""
+@dataclass(slots=True)
+class _Hour:
+    """Per-hour inputs prepared once for the DP."""
+
+    t_out: float
+    demand: float
+    buy: float
+    sell: float
+    surplus_kwh: float
+    hp_available: bool
+    cap_kw: float | None
+    ready_t: float | None
+
+
+@dataclass(slots=True)
+class _StepResult:
+    t_next: float
+    q_hp: float
+    q_heater: float
+    e_hp: float
+    e_heater: float
+    fuel_cost: float
+    cop: float
+    cost: float
+
+
+def _elec_cost(h: _Hour, kwh: float) -> float:
+    if kwh <= 0:
+        return 0.0
+    own = min(kwh, h.surplus_kwh)
+    return own * h.sell + (kwh - own) * h.buy
+
+
+def _step2(cfg: BufferConfig, cop: CopModel, t: float, hp_on: bool, heater_kw: float, h: _Hour) -> _StepResult:
     cap = cfg.capacity
-    demand = heat_demand_kw(cfg, t_out)
     loss = cfg.loss_kw_per_k * max(0.0, t - ROOM_T)
+    need = h.demand + loss
     q_hp = 0.0
-    if on:
-        headroom = (cfg.max_t - t) * cap + demand + loss
-        q_hp = max(0.0, min(cfg.hp_thermal_kw, headroom))
-    t_next = t + (q_hp - demand - loss) / cap
-    c = cop.cop(t_out, (t + t_next) / 2 + SUPPLY_DELTA)
-    electric = q_hp / c if q_hp > 0 else 0.0
+    hp_limit = cfg.hp_max_t if cfg.hp_max_t is not None else cfg.max_t
+    hp_limit = min(hp_limit, cfg.max_t)
+    if hp_on:
+        # may still cover losses/demand at the limit (keeps the run going)
+        q_hp = max(0.0, min(cfg.hp_thermal_kw, (hp_limit - t) * cap + need))
+    q_heat = 0.0
+    if heater_kw > 0 and cfg.heater is not None:
+        h_limit = min(cfg.heater.max_t if cfg.heater.max_t is not None else cfg.max_t, cfg.max_t)
+        q_heat = max(0.0, min(heater_kw, (h_limit - t) * cap + need - q_hp))
+    t_next = t + (q_hp + q_heat - need) / cap
+    c = cop.cop(h.t_out, (t + t_next) / 2 + SUPPLY_DELTA)
+    e_hp = q_hp / c if q_hp > 0 else 0.0
     if cfg.hp_electric_kw > 0:
-        electric = min(electric, cfg.hp_electric_kw * 1.5)
-    return t_next, q_hp, electric, c
+        e_hp = min(e_hp, cfg.hp_electric_kw * 1.5)
+    e_heat = 0.0
+    fuel = 0.0
+    if q_heat > 0 and cfg.heater is not None:
+        eff = max(0.05, cfg.heater.efficiency)
+        if cfg.heater.is_electric:
+            e_heat = q_heat / eff
+        else:
+            fuel = q_heat / eff * cfg.heater.fuel_price
+    cost = _elec_cost(h, e_hp + e_heat) + fuel
+    return _StepResult(t_next, q_hp, q_heat, e_hp, e_heat, fuel, c, cost)
+
+
+# Backwards-compatible single-source step (used by older callers/tests)
+def _step(cfg: BufferConfig, cop: CopModel, t: float, on: bool, t_out: float) -> tuple[float, float, float, float]:
+    h = _Hour(t_out, heat_demand_kw(cfg, t_out), 0.0, 0.0, 0.0, True, None, None)
+    r = _step2(cfg, cop, t, on, 0.0, h)
+    return r.t_next, r.q_hp, r.e_hp, r.cop
+
+
+def _prepare_hours(
+    cfg: BufferConfig,
+    usable: Sequence[PriceSlot],
+    outdoor_forecast: Mapping[datetime, float],
+    default_outdoor: float,
+    *,
+    hp_available: Sequence[bool] | None,
+    cap_kw: Sequence[float | None] | None,
+    sell_prices: Mapping[datetime, float] | None,
+    surplus_kwh: Mapping[datetime, float] | None,
+) -> list[_Hour]:
+    hours: list[_Hour] = []
+    for i, s in enumerate(usable):
+        t_out = outdoor_forecast.get(s.start, default_outdoor)
+        demand = (
+            cfg.demand_kw[i] if cfg.demand_kw is not None and i < len(cfg.demand_kw) else heat_demand_kw(cfg, t_out)
+        )
+        ready_t = None
+        for r in cfg.ready:
+            if s.start < r.at <= s.end:
+                ready_t = max(ready_t or r.min_t, r.min_t)
+        hours.append(
+            _Hour(
+                t_out=t_out,
+                demand=max(0.0, demand),
+                buy=effective_price(s, cfg.risk_aversion) or 0.0,
+                sell=(sell_prices or {}).get(s.start, 0.0),
+                surplus_kwh=max(0.0, (surplus_kwh or {}).get(s.start, 0.0)),
+                hp_available=cfg.hp_enabled and (hp_available is None or (i < len(hp_available) and hp_available[i])),
+                cap_kw=None if cap_kw is None or i >= len(cap_kw) else cap_kw[i],
+                ready_t=ready_t,
+            )
+        )
+    return hours
 
 
 def simulate(
     cfg: BufferConfig,
     cop: CopModel,
     t0: float,
-    actions: Sequence[bool],
+    actions: Sequence[bool | tuple[bool, float]],
     slots: Sequence[PriceSlot],
-    outdoor: Sequence[float],
+    outdoor: Sequence[float] | Sequence[_Hour],
 ) -> tuple[list[BufferStep], float]:
     steps: list[BufferStep] = []
     t = t0
     total = 0.0
-    for on, slot, t_out in zip(actions, slots, outdoor, strict=False):
-        t_next, q, e, c = _step(cfg, cop, t, on, t_out)
-        price = slot.value or 0.0
-        cost = e * price
-        total += cost
-        steps.append(BufferStep(slot.start, 1.0 if q > 0 else 0.0, t, t_next, e, q, price, c, cost, slot.source.value))
-        t = t_next
+    for i, (action, slot) in enumerate(zip(actions, slots, strict=False)):
+        hp_on, heater_kw = action if isinstance(action, tuple) else (bool(action), 0.0)
+        src = outdoor[i]
+        h = (
+            src
+            if isinstance(src, _Hour)
+            else _Hour(src, heat_demand_kw(cfg, src), slot.value or 0.0, 0.0, 0.0, True, None, None)
+        )
+        r = _step2(cfg, cop, t, hp_on, heater_kw, h)
+        total += r.cost
+        steps.append(
+            BufferStep(
+                slot.start,
+                1.0 if r.q_hp > 0 else 0.0,
+                t,
+                r.t_next,
+                r.e_hp + r.e_heater,
+                r.q_hp + r.q_heater,
+                h.buy if isinstance(src, _Hour) else (slot.value or 0.0),
+                r.cop,
+                r.cost,
+                slot.source.value,
+                heater_kw=r.q_heater,
+                hp_kwh=r.q_hp,
+                fuel_cost=r.fuel_cost,
+            )
+        )
+        t = r.t_next
     return steps, total
 
 
-def _thermostat_actions(cfg: BufferConfig, cop: CopModel, t0: float, outdoor: Sequence[float], n: int) -> list[bool]:
-    """Non-optimised reference: hysteresis around the target temperature."""
-    actions = []
+def _thermostat_actions(
+    cfg: BufferConfig, cop: CopModel, t0: float, hours: Sequence[float] | Sequence[_Hour], n: int
+) -> list[tuple[bool, float]]:
+    """Non-optimised reference: hysteresis around the target temperature.
+
+    Uses the heat pump when allowed, otherwise the largest heater stage.
+    """
+    actions: list[tuple[bool, float]] = []
     t = t0
     on = t < cfg.target_t - 2
+    big = cfg.heater.stages[-1] if cfg.heater is not None else 0.0
     for i in range(n):
+        src = hours[i]
+        h = src if isinstance(src, _Hour) else _Hour(src, heat_demand_kw(cfg, src), 0.0, 0.0, 0.0, True, None, None)
         if t <= cfg.target_t - 2:
             on = True
         elif t >= cfg.target_t:
             on = False
-        actions.append(on)
-        t, *_ = _step(cfg, cop, t, on, outdoor[i])
+        use_hp = on and h.hp_available and cfg.hp_enabled
+        heater = big if on and not use_hp else 0.0
+        actions.append((use_hp, heater))
+        t = _step2(cfg, cop, t, use_hp, heater, h).t_next
     return actions
+
+
+def _fallback(cfg: BufferConfig, now: datetime, valid_until: datetime, reason: str) -> BufferPlan:
+    return BufferPlan(
+        generated_at=now,
+        valid_until=valid_until,
+        should_heat=False,
+        target_temperature=cfg.target_t,
+        recommended_start=None,
+        recommended_stop=None,
+        recommended_duration_h=0.0,
+        expected_energy_kwh=0.0,
+        expected_cost_pln=0.0,
+        expected_savings_pln=0.0,
+        next_heating_window=None,
+        thermal_energy_target_kwh=0.0,
+        optimization_confidence=0.0,
+        optimization_reason=reason,
+        mode="fallback",
+        feasible=False,
+    )
 
 
 def plan_buffer(
@@ -147,6 +341,10 @@ def plan_buffer(
     default_outdoor: float = 5.0,
     advisory: bool = True,
     stale: bool = False,
+    hp_available: Sequence[bool] | None = None,
+    cap_kw: Sequence[float | None] | None = None,
+    sell_prices: Mapping[datetime, float] | None = None,
+    surplus_kwh: Mapping[datetime, float] | None = None,
 ) -> BufferPlan:
     hour = now.replace(minute=0, second=0, microsecond=0)
     usable: list[PriceSlot] = []
@@ -164,31 +362,23 @@ def plan_buffer(
         reason = (
             "Dane nieaktualne – sterowanie lokalne (termostat Loxone)" if stale else "Brak cen – sterowanie lokalne"
         )
-        return BufferPlan(
-            generated_at=now,
-            valid_until=valid_until,
-            should_heat=False,
-            target_temperature=cfg.target_t,
-            recommended_start=None,
-            recommended_stop=None,
-            recommended_duration_h=0.0,
-            expected_energy_kwh=0.0,
-            expected_cost_pln=0.0,
-            expected_savings_pln=0.0,
-            next_heating_window=None,
-            thermal_energy_target_kwh=0.0,
-            optimization_confidence=0.0,
-            optimization_reason=reason,
-            mode="fallback",
-            feasible=False,
-        )
+        return _fallback(cfg, now, valid_until, reason)
 
-    outdoor = [outdoor_forecast.get(s.start, default_outdoor) for s in usable]
-    prices = [effective_price(s, cfg.risk_aversion) or 0.0 for s in usable]
-    n = len(usable)
+    hours = _prepare_hours(
+        cfg,
+        usable,
+        outdoor_forecast,
+        default_outdoor,
+        hp_available=hp_available,
+        cap_kw=cap_kw,
+        sell_prices=sell_prices,
+        surplus_kwh=surplus_kwh,
+    )
+    n = len(hours)
+    strat = max(0.0, min(cfg.stratification_k, 8.0))
 
     lo = min(cfg.min_t - 5.0, current_t)
-    hi = cfg.max_t
+    hi = max(cfg.max_t, current_t)
     grid_n = math.ceil((hi - lo) / GRID_K) + 1
 
     def idx(t: float) -> int:
@@ -196,39 +386,68 @@ def plan_buffer(
 
     min_run = max(1, cfg.min_runtime_h)
     min_off = max(0, cfg.min_offtime_h)
-    # terminal value of stored heat (PLN per kWh_th), from average future cost
-    avg_cop = sum(cop.cop(o, cfg.target_t + SUPPLY_DELTA) for o in outdoor) / n
-    heat_value = (sum(prices) / n) / max(avg_cop, 1.0)
+    stages = cfg.heater.stages if cfg.heater is not None else [0.0]
+    # terminal value of stored heat (PLN per kWh_th): cheapest average way to make heat
+    avg_buy = sum(h.buy for h in hours) / n
+    candidates = []
+    if cfg.hp_enabled:
+        avg_cop = sum(cop.cop(h.t_out, cfg.target_t + SUPPLY_DELTA) for h in hours) / n
+        candidates.append(avg_buy / max(avg_cop, 1.0))
+    if cfg.heater is not None:
+        eff = max(0.05, cfg.heater.efficiency)
+        candidates.append(avg_buy / eff if cfg.heater.is_electric else cfg.heater.fuel_price / eff)
+    heat_value = min(candidates) if candidates else 0.0
+    leg_needed = cfg.legionella_t is not None
+    leg_deadline = min(n, max(1, cfg.legionella_deadline_h))
+    leg_done_at_start = 1 if (leg_needed and current_t >= (cfg.legionella_t or 0) - 0.2) else 0
 
-    # DP: state (temp_idx, mode, length) -> (cost, exact temperature).
-    # The exact temperature of the cheapest path is carried along so that slow
-    # cooling (< grid step per hour) is not rounded away.
-    State = tuple[int, int, int]
-    layer: dict[State, tuple[float, float]] = {(idx(current_t), 0, min_off): (0.0, current_t)}
-    backs: list[dict[State, tuple[State, bool]]] = []
-    for i in range(n):
+    # DP: state (temp_idx, mode, length, legionella_flag) -> (cost, exact temperature)
+    State = tuple[int, int, int, int]
+    start_state: State = (idx(current_t), 0, min_off, leg_done_at_start)
+    layer: dict[State, tuple[float, float]] = {start_state: (0.0, current_t)}
+    backs: list[dict[State, tuple[State, tuple[bool, float]]]] = []
+    for i, h in enumerate(hours):
         nxt: dict[State, tuple[float, float]] = {}
-        back: dict[State, tuple[State, bool]] = {}
+        back: dict[State, tuple[State, tuple[bool, float]]] = {}
+        hp_options = (False, True) if h.hp_available else (False,)
         for state, (cost, t) in layer.items():
-            _, mode, length = state
-            for on in (False, True):
+            _, mode, length, leg = state
+            for on in hp_options:
                 if on and mode == 0 and length < min_off:
                     continue
                 if not on and mode == 1 and length < min_run:
                     continue
-                t_next, _, e, _ = _step(cfg, cop, t, on, outdoor[i])
-                c = cost + e * prices[i]
-                if t_next < cfg.min_t:
-                    c += (cfg.min_t - t_next) * cfg.comfort_penalty_pln_per_kh
-                if on and mode == 0:
-                    c += cfg.start_penalty_pln
-                if on:
-                    key = (idx(t_next), 1, min(min_run, length + 1) if mode == 1 else 1)
-                else:
-                    key = (idx(t_next), 0, min(min_off, length + 1) if mode == 0 else (1 if min_off else 0))
-                if key not in nxt or c < nxt[key][0]:
-                    nxt[key] = (c, t_next)
-                    back[key] = (state, on)
+                for stage in stages:
+                    r = _step2(cfg, cop, t, on, stage, h)
+                    if stage > 0 and r.q_heater <= 0:
+                        continue  # heater would not add heat (at its limit)
+                    if h.cap_kw is not None and r.e_hp + r.e_heater > h.cap_kw + 1e-6:
+                        continue
+                    c = cost + r.cost + HEATER_USE_PENALTY * r.q_heater
+                    top_next = r.t_next + strat
+                    if top_next < cfg.min_t:
+                        c += (cfg.min_t - top_next) * cfg.comfort_penalty_pln_per_kh
+                    if h.ready_t is not None and top_next < h.ready_t:
+                        c += (h.ready_t - top_next) * cfg.ready_penalty_pln_per_k
+                    if on and mode == 0:
+                        c += cfg.start_penalty_pln
+                    new_leg = leg
+                    if leg_needed and not leg and i < leg_deadline and r.t_next >= (cfg.legionella_t or 0) - 0.2:
+                        new_leg = 1
+                    if leg_needed and not new_leg and i == leg_deadline - 1:
+                        c += cfg.legionella_penalty_pln
+                    if on:
+                        key = (idx(r.t_next), 1, min(min_run, length + 1) if mode == 1 else 1, new_leg)
+                    else:
+                        key = (
+                            idx(r.t_next),
+                            0,
+                            min(min_off, length + 1) if mode == 0 else (1 if min_off else 0),
+                            new_leg,
+                        )
+                    if key not in nxt or c < nxt[key][0]:
+                        nxt[key] = (c, r.t_next)
+                        back[key] = (state, (on, stage))
         backs.append(back)
         layer = nxt
 
@@ -238,17 +457,16 @@ def plan_buffer(
         return cost - stored * heat_value
 
     final = min(layer.items(), key=lambda kv: terminal(kv[1]))[0]
-    actions: list[bool] = [False] * n
+    actions: list[tuple[bool, float]] = [(False, 0.0)] * n
     state = final
     for i in range(n - 1, -1, -1):
-        prev, on = backs[i][state]
-        actions[i] = on
+        prev, act = backs[i][state]
+        actions[i] = act
         state = prev
 
-    steps, cost = simulate(cfg, cop, current_t, actions, usable, outdoor)
-    ref_actions = _thermostat_actions(cfg, cop, current_t, outdoor, n)
-    ref_steps, ref_cost = simulate(cfg, cop, current_t, ref_actions, usable, outdoor)
-    # correct for different end-of-horizon heat content
+    steps, cost = simulate(cfg, cop, current_t, actions, usable, hours)
+    ref_actions = _thermostat_actions(cfg, cop, current_t, hours, n)
+    ref_steps, ref_cost = simulate(cfg, cop, current_t, ref_actions, usable, hours)
     delta_heat = (steps[-1].temperature_end - ref_steps[-1].temperature_end) * cfg.capacity
     savings = ref_cost - cost + delta_heat * heat_value
 
@@ -264,7 +482,7 @@ def plan_buffer(
                 break
             first_stop = s.start + timedelta(hours=1)
             peak = s.temperature_end
-        target_temperature = round(min(cfg.max_t, max(cfg.min_t, peak)) * 2) / 2
+        target_temperature = round(min(cfg.max_t, max(cfg.min_t, peak + strat)) * 2) / 2
     duration = (first_stop - first_start).total_seconds() / 3600 if first_start and first_stop else 0.0
 
     conf_values = [
@@ -273,21 +491,40 @@ def plan_buffer(
         if s.thermal_kwh > 0
     ]
     confidence = sum(conf_values) / len(conf_values) if conf_values else 1.0
-    starts = sum(1 for i, a in enumerate(actions[:24]) if a and (i == 0 or not actions[i - 1]))
-    should_heat = bool(actions[0] and steps[0].thermal_kwh > 0)
-    min_temp = min(s.temperature_end for s in steps)
-    if should_heat:
+    hp_on_list = [a[0] and st.hp_kwh > 0 for a, st in zip(actions, steps, strict=True)]
+    starts = sum(1 for i, a in enumerate(hp_on_list[:24]) if a and (i == 0 or not hp_on_list[i - 1]))
+    should_heat = bool(hp_on_list[0])
+    heater_now = steps[0].heater_kw
+    heater_hours = [s for s in steps if s.heater_kw > 0]
+    min_top = min(s.temperature_end for s in steps) + strat
+    if should_heat and heater_now > 0:
+        reason = "Grzanie teraz – pompa ciepła i grzałka (najtańsze ciepło w horyzoncie)"
+    elif should_heat:
         reason = "Grzanie teraz – najniższy koszt ciepła w horyzoncie"
+    elif heater_now > 0:
+        reason = "Grzałka teraz – tańsza niż pompa ciepła w tej godzinie"
     elif heating:
         reason = f"Czekaj – tańsze ciepło od {_local_hhmm(first_start)}"
     else:
-        reason = "Bufor wystarczający – grzanie niepotrzebne w horyzoncie"
-    if min_temp < cfg.min_t:
+        reason = "Zapas ciepła wystarczający – grzanie niepotrzebne w horyzoncie"
+    if min_top < cfg.min_t:
         reason += "; uwaga: prognozowany spadek poniżej minimum"
+    missed_ready = [
+        h
+        for h, s in zip(hours, steps, strict=True)
+        if h.ready_t is not None and s.temperature_end + strat < h.ready_t - 0.5
+    ]
+    if missed_ready:
+        reason += "; uwaga: temperatura gotowości nie zostanie osiągnięta"
     if starts > cfg.max_starts_per_day:
         reason += f"; liczba startów {starts} > {cfg.max_starts_per_day}"
+    legionella_at = None
+    if leg_needed:
+        legionella_at = next((s.start for s in steps if s.temperature_end >= (cfg.legionella_t or 0) - 0.2), None)
+        if legionella_at is None and not leg_done_at_start:
+            reason += "; uwaga: cykl antylegionella nie zostanie wykonany"
 
-    return BufferPlan(
+    plan = BufferPlan(
         generated_at=now,
         valid_until=valid_until,
         should_heat=should_heat,
@@ -305,6 +542,33 @@ def plan_buffer(
         optimization_confidence=confidence,
         optimization_reason=reason,
         mode="advisory" if advisory else "control",
-        feasible=min_temp >= cfg.min_t - 0.5,
+        feasible=min_top >= cfg.min_t - 0.5 and not missed_ready,
         steps=steps,
     )
+    plan.heater_should_run = heater_now > 0
+    plan.heater_power_kw = heater_now
+    plan.heater_next_start = heater_hours[0].start if heater_hours else None
+    plan.hp_hours = [s.start for s, on in zip(steps, hp_on_list, strict=True) if on]
+    plan.legionella_at = legionella_at
+    plan.name = cfg.name
+    plan.soc_pct = storage_soc(cfg, current_t)
+    plan.stored_energy_kwh = max(0.0, (current_t - cfg.min_t) * cfg.capacity)
+    plan.fuel_cost_pln = sum(s.fuel_cost for s in steps[:24])
+    return plan
+
+
+def storage_soc(cfg: BufferConfig, mean_t: float) -> float:
+    """State of charge in % between min and max temperature."""
+    span = max(0.1, cfg.max_t - cfg.min_t)
+    return max(0.0, min(100.0, (mean_t - cfg.min_t) / span * 100.0))
+
+
+def mean_from_layers(top: float | None, bottom: float | None) -> tuple[float | None, float]:
+    """(mean temperature, stratification half-difference) from top/bottom readings."""
+    if top is None and bottom is None:
+        return None, 0.0
+    if bottom is None:
+        return top, 0.0
+    if top is None:
+        return bottom, 0.0
+    return (top + bottom) / 2, max(0.0, (top - bottom) / 2)

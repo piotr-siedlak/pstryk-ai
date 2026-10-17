@@ -21,6 +21,7 @@ from .outputs import PstrykAIData
 class PstrykBinaryDescription(BinarySensorEntityDescription):
     value_fn: Callable[[PstrykAIData, PstrykAICoordinator], bool | None]
     attrs_fn: Callable[[PstrykAIData, PstrykAICoordinator], dict[str, Any]] | None = None
+    requires: Callable[[Any], bool] | None = None
 
 
 def _flags(d: PstrykAIData, c: PstrykAICoordinator) -> dict[str, bool | None]:
@@ -75,10 +76,46 @@ BINARY: tuple[PstrykBinaryDescription, ...] = (
 )
 
 
+def _plan_flags(p: Any) -> dict[str, Any]:
+    if p is None:
+        return {}
+    return {"mode": p.mode, "reason": p.optimization_reason, "valid_until": p.valid_until.isoformat()}
+
+
+EXTRA_BINARY: tuple[PstrykBinaryDescription, ...] = (
+    PstrykBinaryDescription(
+        key="dhw_should_heat",
+        translation_key="dhw_should_heat",
+        value_fn=lambda d, c: d.dhw.should_heat if d.dhw else None,
+        attrs_fn=lambda d, c: _plan_flags(d.dhw),
+        requires=lambda s: s.ext.dhw.enabled,
+    ),
+    PstrykBinaryDescription(
+        key="buffer_heater_should_run",
+        translation_key="buffer_heater_should_run",
+        value_fn=lambda d, c: d.buffer.heater_should_run if d.buffer else None,
+        attrs_fn=lambda d, c: {"power_kw": d.buffer.heater_power_kw} | _plan_flags(d.buffer) if d.buffer else {},
+        requires=lambda s: s.ext.buffer_heater.enabled,
+    ),
+    PstrykBinaryDescription(
+        key="dhw_heater_should_run",
+        translation_key="dhw_heater_should_run",
+        value_fn=lambda d, c: d.dhw.heater_should_run if d.dhw else None,
+        attrs_fn=lambda d, c: {"power_kw": d.dhw.heater_power_kw} | _plan_flags(d.dhw) if d.dhw else {},
+        requires=lambda s: s.ext.dhw.enabled and s.ext.dhw_heater.enabled,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: PstrykAIConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    async_add_entities(PstrykBinary(entry.runtime_data, d) for d in BINARY)
+    settings = entry.runtime_data.settings
+    async_add_entities(
+        PstrykBinary(entry.runtime_data, d)
+        for d in (*BINARY, *EXTRA_BINARY)
+        if d.requires is None or d.requires(settings)
+    )
 
 
 class PstrykBinary(PstrykAIEntity, BinarySensorEntity):

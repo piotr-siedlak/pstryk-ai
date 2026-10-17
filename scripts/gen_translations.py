@@ -40,7 +40,32 @@ ENTITIES = {
         "last_update": "Czas ostatniej aktualizacji",
         "buffer_target_temperature": "Zalecana temperatura bufora",
         "buffer_next_window": "Następne okno grzania",
-        "buffer_temperature": "Temperatura bufora (odczyt)",
+        "buffer_temperature": "Temperatura bufora – góra",
+        "buffer_bottom_temperature": "Temperatura bufora – dół",
+        "buffer_soc": "Naładowanie bufora",
+        "buffer_heater_power": "Grzałka bufora – zalecana moc",
+        "dhw_top_temperature": "Temperatura CWU – góra",
+        "dhw_bottom_temperature": "Temperatura CWU – dół",
+        "dhw_soc": "Naładowanie CWU",
+        "dhw_target_temperature": "Zalecana temperatura CWU",
+        "dhw_next_window": "Następne grzanie CWU",
+        "dhw_expected_cost": "Prognozowany koszt CWU",
+        "dhw_plan_reason": "Uzasadnienie planu CWU",
+        "dhw_heater_power": "Grzałka CWU – zalecana moc",
+        "legionella": "Antylegionella – ostatni cykl",
+        "valve_position": "Zawór pompy ciepła",
+        "distribution_zone": "Strefa taryfy dystrybucyjnej",
+        "pv_production_today": "Produkcja PV dziś (prognoza)",
+        "pv_surplus_now": "Nadwyżka PV teraz",
+        "hp_energy_today": "Zużycie pompy ciepła dziś",
+        "hp_cost_today": "Koszt pompy ciepła dziś",
+        "heaters_energy_today": "Zużycie grzałek dziś",
+        "cost_yesterday": "Koszt energii wczoraj",
+        "cost_previous_month": "Koszt energii w poprzednim miesiącu",
+        "cost_12_months": "Koszt energii – ostatnie 12 miesięcy",
+        "avg_daily_cost": "Średni dzienny koszt energii",
+        "projected_month_cost": "Prognozowany koszt miesiąca",
+        "learning_status": "Uczenie parametrów",
         "outdoor_temperature": "Temperatura zewnętrzna (odczyt)",
         "buffer_expected_cost": "Prognozowany koszt ogrzewania",
         "buffer_savings": "Szacowane oszczędności",
@@ -64,12 +89,21 @@ ENTITIES = {
         "pstryk_cheap_hour": "Tania godzina wg Pstryk",
         "tomorrow_confirmed": "Ceny na jutro potwierdzone",
         "buffer_should_heat": "Zalecane grzanie bufora",
+        "dhw_should_heat": "Zalecane grzanie CWU",
+        "buffer_heater_should_run": "Zalecana praca grzałki bufora",
+        "dhw_heater_should_run": "Zalecana praca grzałki CWU",
     },
     "switch": {
         "optimization_enabled": "Optymalizacja",
         "buffer_enabled": "Optymalizacja bufora",
         "mqtt_enabled": "Publikacja MQTT",
         "advisory_mode": "Tryb doradczy",
+        "dhw_enabled": "Optymalizacja CWU",
+        "buffer_heater_enabled": "Grzałka bufora",
+        "dhw_heater_enabled": "Grzałka CWU",
+        "pv_enabled": "Autokonsumpcja PV",
+        "power_limit_enabled": "Limit mocy przyłącza",
+        "optimize_all_in": "Optymalizacja wg ceny z dystrybucją",
     },
     "button": {
         "recalculate_forecast": "Przelicz prognozę",
@@ -257,6 +291,22 @@ TOPICS = [
     "api/pse/status",
     "api/weather/status",
     "evcc/prices",
+    "optimizer/buffer/heater/should_run",
+    "optimizer/buffer/heater/power",
+    "optimizer/buffer/soc",
+    "optimizer/dhw/should_heat",
+    "optimizer/dhw/mode",
+    "optimizer/dhw/target_temperature",
+    "optimizer/dhw/next_start",
+    "optimizer/dhw/schedule",
+    "optimizer/dhw/heater/should_run",
+    "optimizer/dhw/heater/power",
+    "optimizer/dhw/soc",
+    "optimizer/valve",
+    "spends/summary",
+    "spends/daily",
+    "spends/monthly",
+    "heartbeat",
 ]
 
 STEPS = {
@@ -494,6 +544,350 @@ SERVICE_FIELDS = {
 }
 
 
+# ----------------------------------------------------------------------------- v0.4
+FIELDS.update(
+    {
+        "buffer_top_entity": ("Buffer TOP temperature sensor (HA)", "Czujnik temperatury bufora – GÓRA (HA)"),
+        "buffer_top_topic": (
+            "Buffer TOP temperature – exact MQTT topic",
+            "Temperatura bufora – GÓRA – dokładny temat MQTT",
+        ),
+        "buffer_top_json_key": ("Buffer TOP – JSON key (optional)", "Bufor GÓRA – klucz JSON (opcjonalnie)"),
+        "buffer_bottom_entity": (
+            "Buffer BOTTOM temperature sensor (HA, optional)",
+            "Czujnik temperatury bufora – DÓŁ (HA, opcjonalnie)",
+        ),
+        "buffer_bottom_topic": (
+            "Buffer BOTTOM temperature – exact MQTT topic (optional)",
+            "Temperatura bufora – DÓŁ – dokładny temat MQTT (opcjonalnie)",
+        ),
+        "buffer_bottom_json_key": ("Buffer BOTTOM – JSON key (optional)", "Bufor DÓŁ – klucz JSON (opcjonalnie)"),
+        "heat_pump_max_supply_temperature": (
+            "Heat pump maximum supply temperature",
+            "Maksymalna temperatura zasilania pompy ciepła",
+        ),
+        # pstryk spending
+        "pstryk_spends": ("Pstryk spending (daily / monthly costs)", "Wydatki Pstryk (koszty dzienne i miesięczne)"),
+        "pstryk_monthly_history": (
+            "Monthly history – last 12 months (1 request per day)",
+            "Historia miesięczna – ostatnie 12 miesięcy (1 zapytanie dziennie)",
+        ),
+        "pstryk_statistics_import": (
+            "Import daily totals into HA long-term statistics (Energy dashboard)",
+            "Import dziennych sum do statystyk HA (panel Energia)",
+        ),
+        # tariff
+        "distribution_tariff": ("Distribution tariff", "Taryfa dystrybucyjna"),
+        "distribution_rate_peak": (
+            "Variable distribution – day / peak (net)",
+            "Zmienna opłata dystrybucyjna – dzienna / szczyt (netto)",
+        ),
+        "distribution_rate_offpeak": (
+            "Variable distribution – night / off-peak (net)",
+            "Zmienna opłata dystrybucyjna – nocna / pozaszczyt (netto)",
+        ),
+        "distribution_rate_peak2": (
+            "Variable distribution – G13 afternoon peak (net)",
+            "Zmienna opłata dystrybucyjna – G13 szczyt popołudniowy (netto)",
+        ),
+        "distribution_offpeak_hours": ("Off-peak hours, e.g. 22-6,13-15", "Godziny strefy tańszej, np. 22-6,13-15"),
+        "distribution_peak2_hours": (
+            "G13 afternoon peak hours, e.g. 16-21",
+            "Godziny szczytu popołudniowego G13, np. 16-21",
+        ),
+        "distribution_weekend_offpeak": ("Weekends and holidays are off-peak", "Weekendy i święta w strefie tańszej"),
+        "optimize_on_all_in_price": (
+            "Optimise on the price including distribution",
+            "Optymalizuj według ceny z dystrybucją",
+        ),
+        # heaters
+        **{
+            f"{p}_heater_{k}": (en, pl)
+            for p in ("buffer", "dhw")
+            for k, en, pl in (
+                ("enabled", "Use the heater", "Używaj grzałki"),
+                ("kind", "Heater type", "Rodzaj grzałki"),
+                (
+                    "steps_kw",
+                    "Power steps in kW (heat output), e.g. 2,4,6",
+                    "Stopnie mocy w kW (moc grzewcza), np. 2,4,6",
+                ),
+                ("efficiency", "Efficiency (electric 1.0, gas ~0.92)", "Sprawność (elektryczna 1,0, gaz ~0,92)"),
+                ("fuel_price", "Gas price per kWh of fuel", "Cena gazu za kWh paliwa"),
+                (
+                    "max_temperature",
+                    "Maximum temperature for the heater (optional)",
+                    "Maksymalna temperatura dla grzałki (opcjonalnie)",
+                ),
+                (
+                    "command_topic",
+                    "Command topic (exact, published only in control mode)",
+                    "Temat sterowania (dokładny, publikowany tylko w trybie sterowania)",
+                ),
+                ("command_format", "Command format", "Format polecenia"),
+                (
+                    "state_topic",
+                    "State / power topic for metering (optional)",
+                    "Temat stanu / mocy do pomiaru zużycia (opcjonalnie)",
+                ),
+                ("state_json_key", "State – JSON key (optional)", "Stan – klucz JSON (opcjonalnie)"),
+            )
+        },
+        # DHW
+        "dhw_enabled": ("Optimise the hot-water tank (CWU)", "Optymalizuj zasobnik CWU"),
+        "dhw_top_entity": ("CWU TOP temperature sensor (HA)", "Czujnik temperatury CWU – GÓRA (HA)"),
+        "dhw_top_topic": ("CWU TOP temperature – exact MQTT topic", "Temperatura CWU – GÓRA – dokładny temat MQTT"),
+        "dhw_top_json_key": ("CWU TOP – JSON key (optional)", "CWU GÓRA – klucz JSON (opcjonalnie)"),
+        "dhw_bottom_entity": (
+            "CWU BOTTOM temperature sensor (HA, optional)",
+            "Czujnik temperatury CWU – DÓŁ (HA, opcjonalnie)",
+        ),
+        "dhw_bottom_topic": (
+            "CWU BOTTOM temperature – exact MQTT topic (optional)",
+            "Temperatura CWU – DÓŁ – dokładny temat MQTT (opcjonalnie)",
+        ),
+        "dhw_bottom_json_key": ("CWU BOTTOM – JSON key (optional)", "CWU DÓŁ – klucz JSON (opcjonalnie)"),
+        "dhw_capacity_liters": ("Tank volume", "Pojemność zasobnika"),
+        "dhw_min_temperature": ("Minimum temperature", "Minimalna temperatura"),
+        "dhw_max_temperature": ("Maximum temperature", "Maksymalna temperatura"),
+        "dhw_target_temperature": ("Default target temperature", "Domyślna temperatura docelowa"),
+        "dhw_ready_times": (
+            "Hot water ready at (local times, e.g. 06:00,19:00)",
+            "Gotowość ciepłej wody o (np. 06:00,19:00)",
+        ),
+        "dhw_ready_temperature": ("Required temperature at ready times", "Wymagana temperatura w godzinach gotowości"),
+        "dhw_liters_per_day": ("Hot water use per day (litres at 45 °C)", "Zużycie ciepłej wody na dobę (litry 45 °C)"),
+        "dhw_losses": ("Tank standby losses", "Straty postojowe zasobnika"),
+        "dhw_heat_pump_mode": ("Heat pump for CWU", "Pompa ciepła dla CWU"),
+        "dhw_priority": ("CWU has priority over the buffer", "CWU ma priorytet nad buforem"),
+        "dhw_valve_command_topic": (
+            "Switching-valve command topic (optional, control mode)",
+            "Temat sterowania zaworem przełączającym (opcjonalnie, tryb sterowania)",
+        ),
+        "legionella_enabled": ("Legionella protection cycle", "Cykl antylegionella"),
+        "legionella_temperature": ("Legionella temperature", "Temperatura antylegionella"),
+        "legionella_interval_days": ("Legionella interval", "Odstęp cyklu antylegionella"),
+        # power
+        "power_limit_enabled": ("Respect the connection power limit", "Uwzględniaj limit mocy przyłącza"),
+        "power_limit_kw": ("Connection power limit", "Limit mocy przyłącza"),
+        "base_load_kw": ("Typical household base load", "Typowe obciążenie podstawowe domu"),
+        "heat_pump_power_entity": (
+            "Heat pump power sensor (HA, optional)",
+            "Czujnik mocy pompy ciepła (HA, opcjonalnie)",
+        ),
+        "heat_pump_power_topic": (
+            "Heat pump power – exact MQTT topic (optional)",
+            "Moc pompy ciepła – dokładny temat MQTT (opcjonalnie)",
+        ),
+        "heat_pump_power_json_key": (
+            "Heat pump power – JSON key (optional)",
+            "Moc pompy ciepła – klucz JSON (opcjonalnie)",
+        ),
+        "power_unit": ("Unit of power readings", "Jednostka odczytów mocy"),
+        # PV
+        "pv_enabled": ("Use PV surplus (self-consumption)", "Wykorzystuj nadwyżkę PV (autokonsumpcja)"),
+        "pv_kwp": ("PV installation size", "Moc instalacji PV"),
+        "pv_performance_ratio": ("Performance ratio", "Współczynnik sprawności instalacji"),
+        # learning
+        "learn_losses": (
+            "Learn building heat demand and storage losses",
+            "Ucz zapotrzebowania budynku i strat zasobnika",
+        ),
+        "learn_dhw_profile": ("Learn hot-water usage profile", "Ucz profilu zużycia ciepłej wody"),
+        "learn_cop": (
+            "Learn heat pump efficiency (needs power metering)",
+            "Ucz sprawności pompy ciepła (wymaga pomiaru mocy)",
+        ),
+        "apply_learned_values": ("Use learned values in planning", "Używaj wyuczonych wartości w planowaniu"),
+        # notifications
+        "notify_tomorrow_prices": ("Tomorrow's prices summary", "Podsumowanie cen na jutro"),
+        "notify_negative_prices": ("Negative prices tomorrow", "Ujemne ceny jutro"),
+        "notify_local_control": ("Fallback to local control", "Przejście na sterowanie lokalne"),
+        "notify_stale_data": ("Stale Pstryk data", "Nieaktualne dane Pstryk"),
+        "notify_service": (
+            "Notify service (e.g. notify.mobile_app_phone; empty = HA notification)",
+            "Usługa powiadomień (np. notify.mobile_app_telefon; puste = powiadomienie HA)",
+        ),
+        "mqtt_heartbeat": (
+            "MQTT heartbeat every 60 s (for Loxone watchdog)",
+            "Heartbeat MQTT co 60 s (dla watchdoga Loxone)",
+        ),
+    }
+)
+STEP_FIELDS["pstryk"] = STEP_FIELDS["pstryk"] + ["pstryk_spends", "pstryk_monthly_history", "pstryk_statistics_import"]
+STEP_FIELDS["user"] = STEP_FIELDS["user"] + ["pstryk_spends", "pstryk_monthly_history", "pstryk_statistics_import"]
+STEP_FIELDS["buffer"] = [
+    "buffer_enabled",
+    "buffer_top_entity",
+    "buffer_bottom_entity",
+    "outdoor_temperature_entity",
+    "buffer_top_topic",
+    "buffer_top_json_key",
+    "buffer_bottom_topic",
+    "buffer_bottom_json_key",
+    "outdoor_temperature_topic",
+    "outdoor_temperature_json_key",
+    "heat_pump_max_supply_temperature",
+    "mqtt_input_max_age_minutes",
+] + [
+    f
+    for f in STEP_FIELDS["buffer"]
+    if not f.startswith(("buffer_temperature", "outdoor_temperature", "buffer_enabled", "mqtt_input_max_age"))
+]
+for _p in ("buffer", "dhw"):
+    STEP_FIELDS[f"{_p}_heater"] = [k for k in FIELDS if k.startswith(f"{_p}_heater_")]
+STEP_FIELDS["dhw"] = [k for k in FIELDS if k.startswith(("dhw_", "legionella_")) and "_heater_" not in k]
+STEP_FIELDS["tariff"] = [k for k in FIELDS if k.startswith("distribution_")] + ["optimize_on_all_in_price"]
+STEP_FIELDS["power"] = [
+    "power_limit_enabled",
+    "power_limit_kw",
+    "base_load_kw",
+    "heat_pump_power_entity",
+    "heat_pump_power_topic",
+    "heat_pump_power_json_key",
+    "power_unit",
+]
+STEP_FIELDS["pv"] = ["pv_enabled", "pv_kwp", "pv_performance_ratio", "base_load_kw"]
+STEP_FIELDS["learning"] = ["learn_losses", "learn_dhw_profile", "learn_cop", "apply_learned_values"]
+STEP_FIELDS["notifications"] = [
+    "notify_tomorrow_prices",
+    "notify_negative_prices",
+    "notify_local_control",
+    "notify_stale_data",
+    "mqtt_heartbeat",
+    "notify_service",
+]
+STEPS.update(
+    {
+        "tariff": (
+            (
+                "Distribution tariff",
+                "Time-of-use variable distribution charge. Hours are local, ranges like 22-6,13-15 (end hour exclusive). With optimisation on the all-in price the cheapest hours include distribution.",
+            ),
+            (
+                "Taryfa dystrybucyjna",
+                "Zmienna opłata dystrybucyjna zależna od strefy. Godziny lokalne, zakresy jak 22-6,13-15 (godzina końcowa wyłączna). Przy optymalizacji wg ceny z dystrybucją najtańsze godziny uwzględniają dystrybucję.",
+            ),
+        ),
+        "buffer_heater": (
+            (
+                "Buffer heater",
+                "Electric element or gas boiler heating the buffer. Commands go to the command topic only when advisory mode is off.",
+            ),
+            (
+                "Grzałka bufora",
+                "Grzałka elektryczna lub kocioł gazowy grzejący bufor. Polecenia trafiają na temat sterowania tylko przy wyłączonym trybie doradczym.",
+            ),
+        ),
+        "dhw_heater": (
+            (
+                "CWU heater",
+                "Electric element or gas boiler heating the hot-water tank (also used for legionella above the heat pump limit).",
+            ),
+            (
+                "Grzałka CWU",
+                "Grzałka elektryczna lub kocioł gazowy grzejący zasobnik CWU (używana też do antylegionelli powyżej limitu pompy).",
+            ),
+        ),
+        "dhw": (
+            (
+                "Hot water (CWU)",
+                "Second storage: drinkable hot-water tank with top/bottom sensors, ready times and an optional legionella cycle. With 'valve' the heat pump serves either the buffer or CWU in each hour.",
+            ),
+            (
+                "Ciepła woda (CWU)",
+                "Drugi zasobnik: ciepła woda użytkowa z czujnikami góra/dół, godzinami gotowości i opcjonalnym cyklem antylegionella. Przy trybie 'zawór' pompa ciepła w danej godzinie grzeje bufor albo CWU.",
+            ),
+        ),
+        "power": (
+            (
+                "Power limit and metering",
+                "Connection limit for heat pump + heaters + devices, and the optional heat-pump power reading used for real consumption and learning.",
+            ),
+            (
+                "Limit mocy i pomiary",
+                "Limit przyłącza dla pompy, grzałek i urządzeń oraz opcjonalny odczyt mocy pompy ciepła do rzeczywistego zużycia i uczenia.",
+            ),
+        ),
+        "pv": (
+            (
+                "PV self-consumption",
+                "PV production is estimated from the solar radiation forecast. Energy above the base load is valued at the Pstryk sell price for flexible loads.",
+            ),
+            (
+                "Autokonsumpcja PV",
+                "Produkcja PV jest szacowana z prognozy promieniowania. Energia ponad obciążenie podstawowe jest wyceniana dla odbiorników elastycznych po cenie sprzedaży Pstryk.",
+            ),
+        ),
+        "learning": (
+            (
+                "Learning",
+                "Learn parameters from measured temperatures (and power, if available). Learned values are used only when enabled below and after enough data.",
+            ),
+            (
+                "Uczenie",
+                "Uczenie parametrów z mierzonych temperatur (i mocy, jeśli dostępna). Wyuczone wartości są używane tylko po włączeniu poniżej i po zebraniu wystarczającej ilości danych.",
+            ),
+        ),
+        "notifications": (
+            ("Notifications", "Choose which notifications to send."),
+            ("Powiadomienia", "Wybierz, które powiadomienia wysyłać."),
+        ),
+    }
+)
+MENU.update(
+    {
+        "tariff": ("Distribution tariff", "Taryfa dystrybucyjna"),
+        "buffer_heater": ("Buffer heater", "Grzałka bufora"),
+        "dhw": ("Hot water (CWU)", "Ciepła woda (CWU)"),
+        "dhw_heater": ("CWU heater", "Grzałka CWU"),
+        "power": ("Power limit and metering", "Limit mocy i pomiary"),
+        "pv": ("PV self-consumption", "Autokonsumpcja PV"),
+        "learning": ("Learning", "Uczenie"),
+        "notifications": ("Notifications", "Powiadomienia"),
+    }
+)
+ERRORS.update(
+    {
+        "invalid_steps": ("Enter power steps like 2,4,6", "Podaj stopnie mocy jak 2,4,6"),
+        "invalid_number": ("Enter a number", "Podaj liczbę"),
+        "invalid_times": ("Enter times like 06:00,19:00", "Podaj godziny jak 06:00,19:00"),
+        "invalid_hours": ("Enter hour ranges like 22-6,13-15", "Podaj zakresy godzin jak 22-6,13-15"),
+        "invalid_notify_service": (
+            "Use a notify service, e.g. notify.mobile_app_phone",
+            "Podaj usługę notify, np. notify.mobile_app_telefon",
+        ),
+    }
+)
+SELECTORS.update(
+    {
+        "heater_kind": {"electric": ("Electric", "Elektryczna"), "gas": ("Gas boiler", "Kocioł gazowy")},
+        "command_format": {"binary": ("On/off (1/0)", "Wł./wył. (1/0)"), "power_kw": ("Power in kW", "Moc w kW")},
+        "dhw_heat_pump_mode": {
+            "valve": ("Shared heat pump with switching valve", "Wspólna pompa ciepła z zaworem przełączającym"),
+            "none": ("Heat pump does not heat CWU (heater only)", "Pompa nie grzeje CWU (tylko grzałka)"),
+        },
+        "power_unit": {"kw": ("kW", "kW"), "w": ("W", "W")},
+        "distribution_tariff": {
+            "none": ("Flat rate (from the Pstryk step)", "Stała stawka (z kroku Pstryk)"),
+            "g11": ("G11", "G11"),
+            "g12": ("G12", "G12"),
+            "g12w": ("G12w", "G12w"),
+            "g13": ("G13", "G13"),
+        },
+    }
+)
+ENUM_STATES = {
+    "valve_position": {"buffer": "Bufor", "dhw": "CWU", "idle": "Postój"},
+    "distribution_zone": {
+        "flat": "Stała",
+        "peak": "Szczyt / dzienna",
+        "offpeak": "Pozaszczyt / nocna",
+        "peak2": "Szczyt popołudniowy",
+    },
+}
+
+
 def build(lang: int) -> dict:
     def step(step_id: str) -> dict:
         title, desc = STEPS[step_id][lang] if step_id in STEPS else (MENU[step_id][lang], "")
@@ -516,6 +910,8 @@ def build(lang: int) -> dict:
                 entry["state"] = STATUS_STATES
             if key in SELECT_STATES:
                 entry["state"] = SELECT_STATES[key]
+            if key in ENUM_STATES:
+                entry["state"] = ENUM_STATES[key]
             entity[platform][key] = entry
     config_steps = {
         s: step(s)
@@ -536,12 +932,20 @@ def build(lang: int) -> dict:
         s: step(s)
         for s in [
             "pstryk",
+            "tariff",
             "location",
             "market",
             "weather",
             "forecast",
             "optimization",
             "buffer",
+            "buffer_heater",
+            "dhw",
+            "dhw_heater",
+            "power",
+            "pv",
+            "learning",
+            "notifications",
             "mqtt",
             "mqtt_topics",
             "panel",
