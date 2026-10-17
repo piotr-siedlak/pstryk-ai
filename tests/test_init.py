@@ -172,6 +172,10 @@ async def test_config_flow_errors(hass: HomeAssistant, aioclient_mock: AiohttpCl
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_API_KEY: "bad"})
     assert result["errors"] == {"base": "invalid_auth"}
     aioclient_mock.clear_requests()
+    aioclient_mock.get(PSTRYK_URL, status=404)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_API_KEY: "bad1"})
+    assert result["errors"] == {"base": "no_contract"}
+    aioclient_mock.clear_requests()
     aioclient_mock.get(PSTRYK_URL, status=429, headers={"Retry-After": "60"})
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_API_KEY: "bad2"})
     assert result["errors"] == {"base": "rate_limited"}

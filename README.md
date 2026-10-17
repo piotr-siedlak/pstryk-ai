@@ -1,6 +1,6 @@
 # Pstryk AI – Energy Intelligence & Optimization
 
-[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.1.0-blue)
+[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.1.1-blue)
 
 Home Assistant integration for Polish [Pstryk.pl](https://pstryk.pl) customers. It combines **confirmed Pstryk prices** with public market,
 power-system and weather data to build a **rolling 7-day (168 h) probabilistic price forecast**, finds the cheapest periods, plans flexible

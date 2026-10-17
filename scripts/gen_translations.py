@@ -290,6 +290,10 @@ STEPS = {
 ERRORS = {
     "invalid_auth": ("Invalid API key", "Nieprawidłowy klucz API"),
     "cannot_connect": ("Cannot connect to Pstryk", "Brak połączenia z Pstryk"),
+    "no_contract": (
+        "Pstryk found no meter or active contract for this key",
+        "Pstryk nie znalazł licznika ani aktywnej umowy dla tego klucza",
+    ),
     "rate_limited": (
         "Pstryk rate limit reached – try again in an hour",
         "Osiągnięto limit zapytań Pstryk – spróbuj za godzinę",

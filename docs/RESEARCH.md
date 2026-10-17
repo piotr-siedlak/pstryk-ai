@@ -49,7 +49,7 @@ Research date: 2026-10-16. Repositories were cloned and their **source code** in
 * Rows `YYYY-MM-DD_Hnn` (hourly, `H02a` on DST end) and `YYYY-MM-DD_Qhh:mm` (quarter, label = end of quarter); columns: duration,
   Fixing I PLN/MWh, volume, continuous, Fixing II EUR/PLN, …
 * Fixing I results ≈10:30, Fixing II ≈13:50; from 2026-06-10 hourly Fixing I prices derive from 15-minute products.
-* The site resets plain HTTP clients at times (bot protection). Treated as **opt-in, experimental**, ≤ 2 requests per publication.
+* The site sometimes resets plain HTTP clients; the aiohttp client parsed it successfully on 2026-10-17. Still **opt-in, experimental**, ≤ 2 requests per publication.
 
 ### Open-Meteo
 * Forecast `api.open-meteo.com/v1/forecast` (multi-location with comma lists, multi-model suffixes `var_model`),

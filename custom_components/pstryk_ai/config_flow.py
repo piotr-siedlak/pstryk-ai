@@ -15,7 +15,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
-from .api.base import ProviderAuthError, ProviderError, ProviderRateLimited
+from .api.base import ProviderAuthError, ProviderError, ProviderNotFound, ProviderRateLimited
 from .api.entsoe import EntsoeClient
 from .api.pse import PseClient
 from .api.pstryk import PstrykClient, key_fingerprint
@@ -386,6 +386,8 @@ class PstrykAIConfigFlow(ConfigFlow, domain=DOMAIN):
             await client.validate(dt_util.utcnow())
         except ProviderAuthError:
             return {"base": "invalid_auth"}
+        except ProviderNotFound:
+            return {"base": "no_contract"}
         except ProviderRateLimited:
             return {"base": "rate_limited"}
         except ProviderError as err:
