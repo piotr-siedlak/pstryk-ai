@@ -2,6 +2,17 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] – 2026-10-17
+### Added
+- **Temperatures from exact MQTT topics**: buffer temperature, outdoor temperature (options *Thermal buffer*) and per-device values
+  (`temperature_topic` / `value_topic` + `target` in device profiles). Plain-number or JSON payloads (`temperature_key`, dotted paths),
+  plausibility limits, configurable maximum age (default 30 min).
+- MQTT readings take precedence over Home Assistant sensors; a stale or missing buffer reading puts the buffer in local-control fallback.
+- Automatic re-planning when the buffer deviates > 1 K from the plan or a device crosses its target (≤ 1 per 5 min, deferred not dropped).
+- Devices at or above their target are not scheduled ("Cel osiągnięty").
+- Sensors *Temperatura bufora (odczyt)*, *Temperatura zewnętrzna (odczyt)*; panel shows the measured buffer temperature and its source,
+  and device value vs target; repair issue when MQTT inputs are configured without MQTT.
+
 ## [0.2.0] – 2026-10-17
 ### Added
 - **Pstryk AI sidebar panel**: current price with source, 48 h plan (prices, cheapest window, buffer heating and device schedules on one

@@ -22,6 +22,8 @@ from .const import (
     CONF_BUFFER_STRATEGY,
     CONF_BUFFER_TARGET_T,
     CONF_BUFFER_TEMP_ENTITY,
+    CONF_BUFFER_TEMP_KEY,
+    CONF_BUFFER_TEMP_TOPIC,
     CONF_BUFFER_VOLUME_L,
     CONF_CHEAP_HOURS,
     CONF_DEVICE_PROFILES,
@@ -38,6 +40,7 @@ from .const import (
     CONF_HP_ELECTRIC_KW,
     CONF_HP_THERMAL_KW,
     CONF_INDOOR_BASE_T,
+    CONF_INPUT_MAX_AGE_MIN,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_MARKET_PROVIDER,
@@ -54,6 +57,8 @@ from .const import (
     CONF_MQTT_TOPICS,
     CONF_OPTIMIZATION_ENABLED,
     CONF_OUTDOOR_TEMP_ENTITY,
+    CONF_OUTDOOR_TEMP_KEY,
+    CONF_OUTDOOR_TEMP_TOPIC,
     CONF_PRICE_INCLUDES_DISTRIBUTION,
     CONF_PRICE_THRESHOLD,
     CONF_PROSUMER,
@@ -82,6 +87,7 @@ from .const import (
     DEFAULT_HP_ELECTRIC_KW,
     DEFAULT_HP_THERMAL_KW,
     DEFAULT_INDOOR_BASE_T,
+    DEFAULT_INPUT_MAX_AGE_MIN,
     DEFAULT_MAX_SPECULATIVE_H,
     DEFAULT_MAX_STARTS,
     DEFAULT_MIN_OFFTIME_H,
@@ -134,6 +140,11 @@ class Settings:
     buffer_enabled: bool
     buffer_temp_entity: str | None
     outdoor_temp_entity: str | None
+    buffer_temp_topic: str | None
+    buffer_temp_key: str | None
+    outdoor_temp_topic: str | None
+    outdoor_temp_key: str | None
+    input_max_age_min: int
     buffer: BufferConfig
     cop: CopModel
     buffer_strategy: str
@@ -219,6 +230,11 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
         buffer_enabled=bool(g(CONF_BUFFER_ENABLED, False)),
         buffer_temp_entity=g(CONF_BUFFER_TEMP_ENTITY, None),
         outdoor_temp_entity=g(CONF_OUTDOOR_TEMP_ENTITY, None),
+        buffer_temp_topic=(str(g(CONF_BUFFER_TEMP_TOPIC, "")).strip() or None),
+        buffer_temp_key=(str(g(CONF_BUFFER_TEMP_KEY, "")).strip() or None),
+        outdoor_temp_topic=(str(g(CONF_OUTDOOR_TEMP_TOPIC, "")).strip() or None),
+        outdoor_temp_key=(str(g(CONF_OUTDOOR_TEMP_KEY, "")).strip() or None),
+        input_max_age_min=int(g(CONF_INPUT_MAX_AGE_MIN, DEFAULT_INPUT_MAX_AGE_MIN)),
         buffer=BufferConfig(
             volume_l=float(g(CONF_BUFFER_VOLUME_L, DEFAULT_BUFFER_VOLUME_L)),
             min_t=min_t,

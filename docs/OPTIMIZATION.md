@@ -20,8 +20,21 @@ JSON list in the options (`Optymalizacja → Profile urządzeń`):
 ]
 ```
 
+Devices with a measured value (DHW tank, EV) can read it from MQTT and skip work when the target is already reached:
+
+```json
+[
+  {"name": "Bojler CWU", "power_kw": 3.0, "duration_h": 2, "target": 55, "temperature_topic": "loxone/cwu/temperatura"},
+  {"name": "EV", "power_kw": 7.4, "duration_h": 4, "target": 80, "value_topic": "evcc/loadpoints/1/vehicleSoc"},
+  {"name": "Bufor CO", "power_kw": 3.0, "duration_h": 3, "target": 45, "temperature_topic": "loxone/bufor", "temperature_key": "value"}
+]
+```
+
+When the current value is ≥ `target` the profile gets no hours (reason *Cel osiągnięty*); when the reading is missing or stale the
+schedule is planned normally and the reason says so.
+
 Fields: `name, power_kw, duration_h | required_energy_kwh (+efficiency), min_run_h, min_off_h, allowed_start/allowed_end (local, may cross
-midnight), earliest_start, deadline (default now + 24 h), priority, max_price, target (informative), enabled, consecutive`.
+midnight), earliest_start, deadline (default now + 24 h), priority, max_price, target, temperature_topic (alias value_topic), temperature_key (alias value_key), enabled, consecutive`.
 
 Non-consecutive profiles are solved by dynamic programming over hourly slots with state *(hours done, on/off, run/off length)*, which
 enforces minimum run and off times exactly. When no prices are available the fallback schedules the earliest allowed hours so the task still
@@ -40,6 +53,9 @@ Electricity = Q_hp / COP(T_out, T_supply ≈ T_buffer + 5 K)
 
 COP: either nominal COP (A7/W35) with a Carnot-ratio dependency, or a measured curve `-15:2.0,-7:2.6,2:3.3,7:4.1` (W35) corrected for
 supply temperature. A hotter buffer **lowers COP** – the optimiser compares the cost of *delivered heat*, not of electricity.
+
+The **current buffer temperature** comes from the MQTT topic `buffer_temperature_topic` (preferred) or the Home Assistant sensor; the
+outdoor temperature for the current hour likewise (`outdoor_temperature_topic`), later hours use the Open-Meteo forecast.
 
 Optimisation: dynamic programming over a 0.5 K grid (exact temperature carried along the cheapest path) and compressor state, horizon up
 to 72 h (receding horizon – recomputed every hour and whenever inputs change). Objective = cost (risk-adjusted for forecasts) + comfort
