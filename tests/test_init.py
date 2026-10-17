@@ -57,8 +57,12 @@ class PstrykMock:
             return AiohttpClientMockResponse(method, url, status=self.status)
         start = parse_iso(query["window_start"])
         end = parse_iso(query.get("window_end") or query["window_start"])
-        hours = max(1, int((end - start).total_seconds() // 3600))
-        frames = pstryk_frames(start, hours)
+        resolution = query.get("resolution", "hour")
+        step = {"hour": timedelta(hours=1), "day": timedelta(days=1), "month": timedelta(days=30)}[resolution]
+        count = max(1, int((end - start) / step) + (0 if resolution == "hour" else 1))
+        frames = pstryk_frames(start, count, step=step)
+        if resolution != "hour" and frames:
+            frames[-1]["is_live"] = True
         if not self.tomorrow:
             _, today_end = local_day_bounds(dt_util.utcnow())
             for f in frames:

@@ -92,9 +92,9 @@ def test_profile_accepts_value_topic_alias() -> None:
 
 def test_validation_rejects_wildcard_topics() -> None:
     errors = validate_section(
-        "buffer", {"buffer_temperature_topic": "loxone/#", "buffer_min_temperature": 30, "buffer_max_temperature": 50}
+        "buffer", {"buffer_top_topic": "loxone/#", "buffer_min_temperature": 30, "buffer_max_temperature": 50}
     )
-    assert errors == {"buffer_temperature_topic": "invalid_input_topic"}
+    assert errors == {"buffer_top_topic": "invalid_input_topic"}
     profiles = json.dumps([{"name": "A", "temperature_topic": "a/+/b"}])
     assert validate_section("optimization", {"device_profiles": profiles}) == {"device_profiles": "invalid_input_topic"}
     ok = json.dumps([{"name": "A", "temperature_topic": "loxone/cwu", "target": 50}])
