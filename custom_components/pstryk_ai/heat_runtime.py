@@ -169,6 +169,7 @@ class HeatRuntimeMixin:
                 min_offtime_h=s.buffer.min_offtime_h,
                 comfort_penalty_pln_per_kh=30.0,
                 hp_levels=x.hp_levels,
+                hp_kw_at_minus15=x.hp_kw_minus15,
                 risk_aversion=s.risk_aversion,
                 hp_enabled=d.hp_mode == DHW_HP_VALVE,
                 hp_max_t=x.hp_max_t,

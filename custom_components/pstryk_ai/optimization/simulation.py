@@ -7,7 +7,10 @@ the actual outdoor temperature. Strategies:
 
 * ``auto``  – the heat pump alone holds its setpoint (no Pstryk AI),
 * ``boost`` – heat pump alone + 100 % boosts in cheap hours (``plan_boost``),
-* ``full``  – full control with modulation (``plan_buffer``).
+* ``full``  – full control with modulation (``plan_buffer``),
+* ``optimum`` – perfect-foresight lower bound: one plan over the whole period
+  with every price known in advance. No real controller can beat it; the gap
+  to it ("regret") shows how much a better algorithm could still gain.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from ..const import LOCAL_TZ
 from ..models.price_slot import PriceSlot, PriceSource
 from .boost import _auto_level, plan_boost
 from .heat_pump import CopModel
-from .thermal_storage import BufferConfig, _Hour, _step2, heat_demand_kw, plan_buffer
+from .thermal_storage import BufferConfig, _Hour, _step2, heat_demand_kw, min_at, plan_buffer
 
 TZ = ZoneInfo(LOCAL_TZ)
 
@@ -109,14 +112,14 @@ def simulate(
             else:
                 level = plan.steps[0].heat_fraction if plan.steps[0].hp_kwh > 0 else 0.0
                 heater = plan.steps[0].heater_kw
-        run_cfg = replace(cfg, hp_max_t=boost_t) if boosted else cfg
+        run_cfg = replace(cfg, hp_max_t=plan.boost_target_t or boost_t) if boosted else cfg
         r = _step2(run_cfg, cop, t, level, heater, h)
         res.cost += r.cost
         res.electric_kwh += r.e_hp + r.e_heater
         res.heat_kwh += r.q_hp + r.q_heater
         top = r.t_next + strat
         res.min_top = min(res.min_top, top)
-        if top < cfg.min_t - 0.3:
+        if top < min_at(cfg, t_out) - 0.3:
             res.hours_below_min += 1
         hp_on = r.q_hp > 0.05
         if hp_on and not hp_on_prev:
@@ -142,12 +145,59 @@ def simulate(
     return res
 
 
+def optimum(
+    prices: Sequence[tuple[datetime, float]],
+    outdoor: dict[datetime, float],
+    cfg: BufferConfig,
+    cop: CopModel,
+    *,
+    start_t: float,
+    hours: int = 24 * 7,
+) -> SimResult:
+    """Perfect-foresight full control over the whole period (a lower bound)."""
+    n = min(hours, len(prices))
+    slots = [PriceSlot(t, t + timedelta(hours=1), p, PriceSource.ACTUAL_PSTRYK) for t, p in prices[:n]]
+    plan = plan_buffer(
+        replace(cfg, max_horizon_h=n), cop, now=slots[0].start, current_t=start_t, slots=slots, outdoor_forecast=outdoor
+    )
+    res = SimResult("optimum")
+    t = start_t
+    prev_on = False
+    strat = max(0.0, min(cfg.stratification_k, 8.0))
+    for slot, step in zip(slots, plan.steps, strict=False):
+        t_out = outdoor.get(slot.start, 5.0)
+        h = _Hour(t_out, heat_demand_kw(cfg, t_out), slot.value or 0.0, 0.0, 0.0, True, None, None)
+        r = _step2(cfg, cop, t, step.heat_fraction if step.hp_kwh > 0 else 0.0, step.heater_kw, h)
+        res.cost += r.cost
+        res.electric_kwh += r.e_hp + r.e_heater
+        res.heat_kwh += r.q_hp + r.q_heater
+        res.min_top = min(res.min_top, r.t_next + strat)
+        if r.t_next + strat < min_at(cfg, t_out) - 0.3:
+            res.hours_below_min += 1
+        on = r.q_hp > 0.05
+        res.hp_starts += 1 if on and not prev_on else 0
+        prev_on = on
+        t = r.t_next
+    res.end_t = t
+    return res
+
+
 def compare(
-    prices, outdoor, cfg, cop, *, start_t: float, boost_t: float = 55.0, hours: int = 24 * 7
+    prices,
+    outdoor,
+    cfg,
+    cop,
+    *,
+    start_t: float,
+    boost_t: float = 55.0,
+    hours: int = 24 * 7,
+    bound: bool = False,
 ) -> dict[str, dict]:
     out = {}
     for s in ("auto", "boost", "full"):
         out[s] = simulate(s, prices, outdoor, cfg, cop, start_t=start_t, boost_t=boost_t, hours=hours).summary()
+    if bound:
+        out["optimum"] = optimum(prices, outdoor, cfg, cop, start_t=start_t, hours=hours).summary()
     # value the different end-of-week heat content fairly (at the auto average cost of heat)
     ref = out["auto"]
     unit = (ref["cost_pln"] / ref["heat_kwh"]) if ref["heat_kwh"] else 0.0

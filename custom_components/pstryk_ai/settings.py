@@ -261,6 +261,8 @@ def load_settings(hass: HomeAssistant, entry: ConfigEntry) -> Settings:
             name="buffer",
             hp_max_t=ext.hp_max_t,
             hp_levels=ext.hp_levels,
+            hp_kw_at_minus15=ext.hp_kw_minus15,
+            curve_slope=ext.curve_slope,
             heater=ext.buffer_heater.config if ext.buffer_heater.enabled else None,
         ),
         cop=CopModel(

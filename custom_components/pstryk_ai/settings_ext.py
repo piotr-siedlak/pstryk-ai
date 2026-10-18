@@ -43,6 +43,8 @@ from .const import (
     CONF_DIST_TARIFF,
     CONF_DIST_WEEKEND_OFFPEAK,
     CONF_HEARTBEAT,
+    CONF_HEATING_CURVE_SLOPE,
+    CONF_HP_KW_MINUS15,
     CONF_HP_MAX_T,
     CONF_HP_MIN_MODULATION,
     CONF_HP_POWER_ENTITY,
@@ -137,7 +139,9 @@ class DhwSettings:
 class ExtSettings:
     buffer_bottom: SensorSource = field(default_factory=SensorSource)
     hp_max_t: float = 55.0
-    hp_levels: tuple[float, ...] = (0.3, 0.65, 1.0)
+    hp_levels: tuple[float, ...] = (0.3, 0.48, 0.65, 0.82, 1.0)
+    hp_kw_minus15: float | None = None  # heat output at −15 °C (None = generic derating)
+    curve_slope: float = 0.0  # heating curve slope, K per K below 0 °C (0 = fixed setpoint)
     hp_strategy: str = "boost"  # boost = heat pump decides, we only boost at 100 % | full = complete control
     boost_t: float = 55.0
     boost_share: float = 0.4  # candidate hours: cheapest share of the next 24 h
@@ -185,6 +189,16 @@ def _f(c: dict[str, Any], key: str, default: float) -> float:
         return default
 
 
+def _opt_f(c: dict[str, Any], key: str) -> float | None:
+    """Optional positive number (text field); empty or invalid = None."""
+    raw = str(c.get(key) or "").strip().replace(",", ".")
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
 def _b(c: dict[str, Any], key: str, default: bool) -> bool:
     value = c.get(key)
     return default if value is None else bool(value)
@@ -204,10 +218,11 @@ def parse_steps(text: Any) -> list[float]:
 
 def hp_levels(min_modulation_pct: float) -> tuple[float, ...]:
     """Power levels for an inverter heat pump; 100 % = on/off compressor."""
-    low = max(5.0, min(100.0, min_modulation_pct)) / 100
-    if low >= 0.99:
+    low = max(5.0, min(100.0, float(min_modulation_pct)))
+    if low >= 99.0:
         return (1.0,)
-    return tuple(sorted({round(low, 2), round((low + 1) / 2, 2), 1.0}))
+    # five evenly spaced steps from the minimum to 100 % (finer steps gain < 1 %, cost CPU)
+    return tuple(sorted({round(low + k * (100.0 - low) / 4) / 100 for k in range(5)}))
 
 
 def load_heater(c: dict[str, Any], prefix: str) -> HeaterSettings:
@@ -274,6 +289,8 @@ def load_ext(c: dict[str, Any]) -> ExtSettings:
         ),
         hp_max_t=_f(c, CONF_HP_MAX_T, 55.0),
         hp_levels=hp_levels(_f(c, CONF_HP_MIN_MODULATION, DEFAULT_HP_MIN_MODULATION)),
+        hp_kw_minus15=_opt_f(c, CONF_HP_KW_MINUS15),
+        curve_slope=max(0.0, min(2.0, _f(c, CONF_HEATING_CURVE_SLOPE, 0.0))),
         hp_strategy="full" if (_s(c, CONF_HP_STRATEGY) or "boost").lower() == "full" else "boost",
         boost_t=_f(c, CONF_BOOST_T, 55.0),
         boost_share=max(0.05, min(1.0, _f(c, CONF_BOOST_SHARE, 40.0) / 100)),

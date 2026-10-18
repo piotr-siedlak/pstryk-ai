@@ -1,6 +1,6 @@
 # Pstryk AI – Energy Intelligence & Optimization
 
-[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.5.0-blue)
+[![hacs](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) ![version](https://img.shields.io/badge/version-0.6.0-blue)
 
 Home Assistant integration for Polish [Pstryk.pl](https://pstryk.pl) customers. It combines **confirmed Pstryk prices** with public market,
 power-system and weather data to build a **rolling 7-day (168 h) probabilistic price forecast**, finds the cheapest periods, plans flexible
@@ -21,6 +21,9 @@ loads and a **heat-pump buffer**, and publishes everything to Home Assistant and
   P10/P50/P90, confidence, live accuracy tracking.
 * Optimisation: cheapest windows across midnight/days, cheapest N hours, most expensive periods, uncertainty-aware postponement,
   device profiles with min run/off times (dynamic programming), thermal buffer MPC with COP(T_out, T_supply) and heat losses.
+* **Heating optimiser (v0.6)**: model-predictive dynamic programming that is within 0.1–0.4 % of the perfect-foresight optimum on
+  real data; knows the heat pump's physics (output in frost, part-load COP, cycling losses, optional heating curve) and chooses the
+  boost temperature per situation – see [docs/SIMULATION.md](docs/SIMULATION.md).
 * **Heat-pump strategy (v0.5)**: *Tylko doładowanie* (default) – the heat pump decides on its own, Pstryk AI only adds 100 % boosts
   in cheap hours when they really pay off; or *Pełne sterowanie* – full hourly control with modulation. Switchable at runtime.
   A real 7-day closed-loop simulation: −12 % (boost) / −22 % (full) vs the heat pump alone, no comfort loss – [docs/SIMULATION.md](docs/SIMULATION.md).

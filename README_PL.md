@@ -44,6 +44,15 @@ licznik i saldo, jakość prognozy oraz status źródeł danych. Działa w trybi
 
 ![Panel Pstryk AI](docs/images/panel.jpg)
 
+## Nowość v0.6: lepszy algorytm grzania
+* Algorytm (programowanie dynamiczne, plan co godzinę) jest tylko **0,1–0,4 % od teoretycznego optimum** (pełna wiedza o cenach
+  całego miesiąca) – sprawdzone na 3 × 4 tygodniach prawdziwych danych (zima, wiosna, jesień).
+* Zna fizykę pompy: **spadek mocy na mrozie** (opcja *Moc grzewcza przy −15 °C*), **lepszy COP przy niższej mocy**, **straty
+  taktowania** (EN 14825), opcjonalną **krzywą grzewczą** (cel i minimum zależne od temperatury zewnętrznej), 5 stopni modulacji.
+* **Tylko doładowanie** samo dobiera temperaturę doładowania (40–55 °C): głęboki dołek cen → 55 °C, umiarkowany → 45–50 °C,
+  mała różnica → bez doładowania. Zimą oszczędność wzrosła prawie 3×, a pełne sterowanie nie spada już poniżej minimum na mrozie.
+  Wyniki: [docs/SIMULATION.md](docs/SIMULATION.md).
+
 ## Nowość v0.5: strategia sterowania pompą
 Przełącznik (select) **Strategia sterowania pompą** – także w *Konfiguruj → Bufor*:
 * **Tylko doładowanie** (domyślnie) – pompa ciepła sama decyduje kiedy i jak grzać (trzyma swoją nastawę). Pstryk AI tylko w tanich

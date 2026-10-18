@@ -96,6 +96,9 @@ def test_savings_are_measured_against_the_same_minimum() -> None:
     assert 0 <= plan.expected_savings_pln < 8
 
 
-@pytest.mark.parametrize(("pct", "expected"), [(100, (1.0,)), (30, (0.3, 0.65, 1.0)), (50, (0.5, 0.75, 1.0))])
+@pytest.mark.parametrize(
+    ("pct", "expected"),
+    [(100, (1.0,)), (30, (0.3, 0.48, 0.65, 0.82, 1.0)), (50, (0.5, 0.62, 0.75, 0.88, 1.0))],
+)
 def test_modulation_levels(pct: int, expected: tuple[float, ...]) -> None:
     assert hp_levels(pct) == expected

@@ -40,33 +40,64 @@ Non-consecutive profiles are solved by dynamic programming over hourly slots wit
 enforces minimum run and off times exactly. When no prices are available the fallback schedules the earliest allowed hours so the task still
 completes (reason: *harmonogram awaryjny*). Each profile has a sensor `Harmonogram: <name>` (next start + full plan in attributes).
 
-## Thermal buffer (`optimization/thermal_storage.py`, `heat_pump.py`)
+## Heating: thermal storage optimiser (`optimization/thermal_storage.py`, `boost.py`, `heat_pump.py`)
 
-Energy balance per hour:
+### Model (v0.6)
+Energy balance per hour (buffer or hot-water tank):
 
 ```
-C·ΔT = Q_hp − Q_demand(T_out) − U_loss·(T_buffer − 20 °C)
-C    = volume_l · 0.001163 kWh/(l·K)          (≈ 0.58 kWh/K for 500 l)
-Q_demand = building_heat_loss_kw_per_k · max(0, T_base − T_out)
-Electricity = Q_hp / COP(T_out, T_supply ≈ T_buffer + 5 K)
+C·ΔT = Q_hp + Q_heater − Q_demand(T_out) − U_loss·(T − 20 °C)
+C        = volume_l · 0.001163 kWh/(l·K)                  (≈ 0.58 kWh/K for 500 l)
+Q_demand = building_kw_per_k · max(0, T_base − T_out)      (or the hot-water draw profile)
+E_hp     = Q_hp / COP
 ```
 
-COP: either nominal COP (A7/W35) with a Carnot-ratio dependency, or a measured curve `-15:2.0,-7:2.6,2:3.3,7:4.1` (W35) corrected for
-supply temperature. A hotter buffer **lowers COP** – the optimiser compares the cost of *delivered heat*, not of electricity.
+Heat-pump physics – each item changes real decisions, see the benchmark below:
 
-The **current buffer temperature** comes from the MQTT topic `buffer_temperature_topic` (preferred) or the Home Assistant sensor; the
-outdoor temperature for the current hour likewise (`outdoor_temperature_topic`), later hours use the Open-Meteo forecast.
+| Effect | Model | Why it matters |
+|---|---|---|
+| COP vs temperatures | Carnot ratio from nominal COP (A7/W35) or a measured W35 curve; supply = **bottom layer** + condenser lift | a hotter tank lowers COP – "charge more, earlier" is not automatically cheaper |
+| **Part load** (inverter) | condenser lift = 5 K × power fraction | 30 % power has a ~5–10 % better COP than 100 % |
+| **Cycling** below minimum modulation | EN 14825: COP × CR / (0.9·CR + 0.1) | an on/off compressor (or an inverter below its minimum) wastes energy on short runs |
+| **Output in frost** | heat output at −15 °C from the options, else −1.2 %/K below +7 °C | a 9 kW unit gives ~6.6 kW at −15 °C – the plan must pre-charge earlier |
+| **Heating curve** (optional) | setpoint and minimum + slope · (0 °C − T_out) | the house needs a hotter buffer in frost and a cooler one in mild weather |
 
-Optimisation: dynamic programming over a 0.5 K grid (exact temperature carried along the cheapest path) and compressor state, horizon up
-to 72 h (receding horizon – recomputed every hour and whenever inputs change). Objective = cost (risk-adjusted for forecasts) + comfort
-penalty below `min` (5 PLN/K·h *min_cost*, 20 PLN/K·h *comfort*) + start penalty − value of heat left at the end. Constraints: max
-temperature (heating is truncated at the limit), min runtime, min off time; starts above `maximum_start_count` are reported.
+Modulation levels: five evenly spaced steps from the minimum modulation to 100 % (e.g. 30/48/65/82/100 %); finer steps gained < 1 %.
 
-Savings are computed against a non-optimised hysteresis thermostat (target −2 K … target) on the same prices and weather, corrected for
-the different heat content at the end of the horizon.
+### Strategy *Pełne sterowanie* (full control)
+Model-predictive control with dynamic programming: state = mean temperature on a 0.5 K grid (exact temperature carried along the
+cheapest path) + compressor run/off counters (+ legionella flag); actions = heat-pump level × heater stage; horizon = all known prices
+(today, and tomorrow after the Pstryk publication ≈ 13:00), extended with the price forecast up to 72 h. Objective = electricity/gas cost
++ comfort penalty below the (weather-dependent) minimum (30 zł/K·h, *Komfort* 100) + ready-by penalties + start penalty − value of heat
+left at the end. Re-planned every hour and whenever a temperature input changes; only the current hour is executed.
 
-Outputs: `should_heat, target_temperature, recommended_start/stop/duration, expected_energy_kwh, expected_cost_pln, expected_savings_pln,
-next_heating_window, thermal_energy_target_kwh, optimization_confidence, optimization_reason` (+ hourly `schedule`).
+### Strategy *Tylko doładowanie* (boost only, default)
+The heat pump keeps its own control. The DP decides in which **cheap hours** (cheapest 40 % of the next 24 h, or negative prices) to run
+it at 100 % and **up to which temperature**: the configured boost temperature or one of up to three lower ones (5 K apart). A deep dip or a
+negative price justifies 55 °C; a moderate one only 45–50 °C (the extra COP loss would eat the gain); a 30 % spread is not used at all.
+The heat pump's own behaviour (hold its weather-compensated setpoint, at reduced output in frost, cycling at low load) is part of the
+model, so a boost is recommended only when it really displaces more expensive heat.
+
+### How good is it? (`scripts/benchmark_heating.py`)
+Closed loop on three real 4-week periods (winter, spring, autumn 2026), compared with the **perfect-foresight optimum** – one plan over
+the whole month with every price known in advance, which no real controller can beat:
+
+| Period | Heat pump alone | Boost only | Full control | Optimum (bound) | Full-control regret |
+|---|---:|---:|---:|---:|---:|
+| Winter (avg −7.8 °C) | 1434.36 zł | 1398.29 zł (−2.5 %) | 1293.20 zł (−9.8 %) | 1292.43 zł | 0.1 % |
+| Spring (negative prices) | 305.03 zł | 242.47 zł (−20.5 %) | 207.89 zł (−31.8 %) | 207.00 zł | 0.4 % |
+| Autumn | 183.51 zł | 121.52 zł (−33.8 %) | 97.63 zł (−46.8 %) | 97.90 zł | ≈ 0 % |
+
+The receding-horizon DP with day-ahead prices is within **0.1–0.4 % of the optimum**: a longer horizon, better price forecasts or a
+heavier solver cannot save more money with this model. What still matters is the model being right – hence the v0.6 physics.
+Details, old-vs-new comparison and caveats: [SIMULATION.md](SIMULATION.md).
+
+### Savings shown in the panel
+*Pełne sterowanie*: against a thermostat that keeps the **same weather-dependent minimum** (min + 1 K … min + 6 K) and modulates like an
+inverter would; *Tylko doładowanie*: against the heat pump alone. Both are corrected for the different heat content at the end.
+
+Outputs: `should_heat, target_temperature, hp_modulation_pct, boost_target_t, recommended_start/stop/duration, expected_energy_kwh,
+expected_cost_pln, expected_savings_pln, next_heating_window, optimization_reason` (+ hourly `schedule`).
 
 ### Safety
 * **Advisory by default** (`Tryb doradczy` on, `optimizer/buffer/mode = advisory`).

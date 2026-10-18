@@ -35,7 +35,7 @@ Publication uses the broker configured in Home Assistant's MQTT integration. Pre
 | `optimizer/buffer/soc` | scalar % | yes | buffer charge |
 | `optimizer/buffer/hp_modulation` | scalar % | **no**, expiry | recommended heat-pump power (full control) / 100 during a boost |
 | `optimizer/buffer/boost`, `optimizer/dhw/boost` | scalar 1/0 | **no**, expiry | boost now: heat pump 100 % up to `boost_target` (strategy *Tylko doładowanie*) |
-| `optimizer/buffer/boost_target`, `optimizer/dhw/boost_target` | scalar °C | yes | boost temperature while boosting, empty otherwise |
+| `optimizer/buffer/boost_target`, `optimizer/dhw/boost_target` | scalar °C | yes | optimised stop temperature of the current boost (40–55 °C), empty otherwise |
 | `optimizer/buffer/strategy`, `optimizer/dhw/strategy` | `boost`/`full` | yes | active heat-pump strategy |
 | `optimizer/dhw/should_heat` | scalar 1/0 | **no**, expiry | hot-water heat-pump recommendation |
 | `optimizer/dhw/mode`, `target_temperature`, `next_start`, `schedule`, `soc` | scalar/JSON | yes | hot-water plan |
