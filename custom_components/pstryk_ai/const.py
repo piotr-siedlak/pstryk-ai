@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "pstryk_ai"
 NAME: Final = "Pstryk AI"
 MANUFACTURER: Final = "Pstryk AI (community)"
-VERSION: Final = "0.5.0"
+VERSION: Final = "0.6.0"
 
 LOCAL_TZ: Final = "Europe/Warsaw"
 
@@ -194,6 +194,10 @@ BOOST_FORMAT_SETPOINT: Final = "setpoint"
 BOOST_FORMATS: Final = [BOOST_FORMAT_BINARY, BOOST_FORMAT_SETPOINT]
 DEFAULT_BOOST_T: Final = 55.0
 DEFAULT_BOOST_SHARE: Final = 40
+
+# v0.6 – heat-pump physics: output in frost and weather-compensated setpoint (heating curve)
+CONF_HP_KW_MINUS15: Final = "heat_pump_thermal_power_minus15"
+CONF_HEATING_CURVE_SLOPE: Final = "heating_curve_slope"
 
 # Heaters: f"{prefix}_heater_<field>" with prefix "buffer" or "dhw"
 HEATER_FIELDS: Final = (

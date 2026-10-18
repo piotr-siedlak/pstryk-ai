@@ -178,9 +178,15 @@ FIELDS = {
         "Czujnik temperatury zewnętrznej (opcjonalnie)",
     ),
     "buffer_capacity_liters": ("Buffer volume", "Pojemność bufora"),
-    "buffer_min_temperature": ("Minimum buffer temperature", "Minimalna temperatura bufora"),
+    "buffer_min_temperature": (
+        "Minimum buffer temperature (at 0 °C outdoors when a heating curve is set)",
+        "Minimalna temperatura bufora (przy 0 °C na zewnątrz, gdy ustawiona krzywa grzewcza)",
+    ),
     "buffer_max_temperature": ("Maximum buffer temperature", "Maksymalna temperatura bufora"),
-    "buffer_target_temperature": ("Default target temperature", "Domyślna temperatura docelowa"),
+    "buffer_target_temperature": (
+        "Heat pump's own setpoint (at 0 °C outdoors when a heating curve is set)",
+        "Nastawa własna pompy ciepła (przy 0 °C na zewnątrz, gdy ustawiona krzywa grzewcza)",
+    ),
     "heat_pump_electrical_power": ("Heat pump electrical power", "Moc elektryczna pompy ciepła"),
     "heat_pump_thermal_power": ("Heat pump thermal power", "Moc grzewcza pompy ciepła"),
     "heat_pump_cop": ("Nominal COP (A7/W35)", "Nominalny COP (A7/W35)"),
@@ -738,6 +744,14 @@ FIELDS.update(
         ),
         "boost_command_format": ("Boost command format", "Format polecenia doładowania"),
         "dhw_boost_temperature": ("CWU boost temperature", "Temperatura doładowania CWU"),
+        "heat_pump_thermal_power_minus15": (
+            "Heat pump output at −15 °C, kW (optional; empty = typical −1.2 %/K below +7 °C)",
+            "Moc grzewcza pompy przy −15 °C, kW (opcjonalnie; puste = typowe −1,2 %/K poniżej +7 °C)",
+        ),
+        "heating_curve_slope": (
+            "Heating curve slope – target and minimum rise by this many K per 1 K below 0 °C (0 = fixed)",
+            "Nachylenie krzywej grzewczej – cel i minimum rosną o tyle K na 1 K poniżej 0 °C (0 = stałe)",
+        ),
         "dhw_boost_command_topic": (
             "CWU boost command topic (optional, control mode only)",
             "Temat polecenia doładowania CWU (opcjonalnie, tylko tryb sterowania)",
@@ -767,7 +781,9 @@ STEP_FIELDS["buffer"] = [
     "boost_command_topic",
     "boost_command_format",
     "heat_pump_max_supply_temperature",
+    "heat_pump_thermal_power_minus15",
     "heat_pump_min_modulation",
+    "heating_curve_slope",
     "mqtt_input_max_age_minutes",
 ] + [
     f

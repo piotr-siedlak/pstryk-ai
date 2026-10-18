@@ -29,7 +29,7 @@ switch entity. A feature switched off in the options cannot be switched on by it
 
 | Strategy | Behaviour |
 |---|---|
-| **Tylko doładowanie** (`boost`, default) | The heat pump keeps its own logic (thermostat / weather curve) and holds its setpoint (*Domyślna temperatura docelowa*). Pstryk AI only says *"now run at 100 % up to the boost temperature"* in cheap hours, when that heat is cheaper than what the heat pump would make on its own later (the lower COP at the higher temperature is included). |
+| **Tylko doładowanie** (`boost`, default) | The heat pump keeps its own logic (thermostat / weather curve) and holds its setpoint (*Nastawa własna pompy ciepła*, optionally on a heating curve). Pstryk AI only says *"now run at 100 % up to the boost temperature"* in cheap hours, when that heat is cheaper than what the heat pump would make on its own later (the lower COP at the higher temperature is included). |
 | **Pełne sterowanie** (`full`) | Pstryk AI plans every hour (on/off/modulation, heaters, valve) – v0.4 behaviour. |
 
 Boost options:
@@ -44,6 +44,19 @@ Boost options:
 
 In boost mode the binary sensor *Grzanie bufora zalecane* means "boost now", `optimizer/buffer/boost` = `1`, and the valve topic is
 not commanded (the heat pump's own controller switches it). Measured result on a real week: [SIMULATION.md](SIMULATION.md).
+
+### Heat-pump physics (v0.6)
+*Configure → Buffer*:
+
+| Option | Meaning |
+|---|---|
+| *Moc grzewcza pompy przy −15 °C* (`heat_pump_thermal_power_minus15`) | heat output at −15 °C from your datasheet (e.g. 6.5 kW for a 9 kW unit). Empty = typical −1.2 %/K below +7 °C. Used for both storages. |
+| *Nachylenie krzywej grzewczej* (`heating_curve_slope`) | 0 = fixed. Otherwise the heat pump's setpoint (*Nastawa własna pompy*) and the minimum apply at 0 °C outdoors and rise by this many K per 1 K of frost (fall in mild weather), e.g. 0.3–0.5 for floor heating. |
+| *Minimalna modulacja* | now gives five power steps (e.g. 30/48/65/82/100 %); below it the model counts cycling losses (EN 14825). |
+
+The optimiser also knows that an inverter is more efficient at part load. In *Tylko doładowanie* it chooses the boost temperature
+(40–55 °C) per situation; `optimizer/buffer/boost_target` carries the chosen stop temperature for the current hour.
+Algorithm and benchmark: [OPTIMIZATION.md](OPTIMIZATION.md), [SIMULATION.md](SIMULATION.md).
 
 ## 2. Auxiliary heater (electric or gas)
 *Configure → Buffer heater* and *Configure → CWU heater*

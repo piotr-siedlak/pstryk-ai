@@ -2,6 +2,29 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] – 2026-10-18
+Heating optimiser upgrade, verified on 3 × 4 weeks of real data (winter, spring, autumn).
+### Added
+- **Heat-pump physics** in the model used by both strategies:
+  - heat output falls in frost – new option *Moc grzewcza pompy przy −15 °C* (empty = typical −1.2 %/K below +7 °C);
+  - part-load efficiency (condenser lift scales with power) and **cycling losses** below the minimum modulation (EN 14825, Cc = 0.9);
+  - optional **heating curve** (*Nachylenie krzywej grzewczej*): the heat pump's setpoint and the comfort minimum follow the outdoor
+    temperature.
+- **Optimised boost temperature** (*Tylko doładowanie*): the planner chooses the stop temperature per hour among the configured boost
+  temperature and up to three lower ones (5 K apart); `boost_target` and the setpoint command carry it; the reason names it.
+- **Perfect-foresight benchmark** (`optimization.simulation.optimum`, `scripts/benchmark_heating.py`): the closed-loop full control is
+  within 0.1–0.4 % of the optimum in every season.
+### Changed
+- Five modulation steps (e.g. 30/48/65/82/100 %) instead of three.
+- The savings reference thermostat keeps the weather-dependent minimum and modulates like an inverter (conservative savings).
+- Labels: *Nastawa własna pompy ciepła* (was *Domyślna temperatura docelowa*); minimum/target apply at 0 °C when a curve is set.
+### Fixed
+- Full control could plan with 9 kW at −20 °C and let the buffer fall below the minimum in frost (62 h in a cold January simulation,
+  258 h with a heating curve); now 0 h.
+### Results (vs v0.5.0, same realistic heat pump)
+- Boost only: winter saving vs the heat pump alone 12.7 → 36.1 zł/4 weeks; autumn −3 % to −5 % cost.
+- Full control: −3 % to −24 % cost depending on season and heating curve, no comfort violations.
+
 ## [0.5.0] – 2026-10-17
 ### Added
 - **Heat-pump strategy** (option + runtime select *Strategia sterowania pompą*):

@@ -83,10 +83,12 @@ from .const import (
     CONF_FORECAST_MODEL,
     CONF_HEARTBEAT,
     CONF_HEAT_LOSS_COEFF,
+    CONF_HEATING_CURVE_SLOPE,
     CONF_HISTORY_DAYS,
     CONF_HP_COP,
     CONF_HP_COP_CURVE,
     CONF_HP_ELECTRIC_KW,
+    CONF_HP_KW_MINUS15,
     CONF_HP_MAX_T,
     CONF_HP_MIN_MODULATION,
     CONF_HP_POWER_ENTITY,
@@ -349,6 +351,10 @@ def schema_buffer(v: Mapping[str, Any]) -> vol.Schema:
         BOOST_FORMATS, "boost_command_format"
     )
     fields[vol.Required(CONF_HP_MAX_T, default=_d(v, CONF_HP_MAX_T, 55.0))] = _num(30, 80, 0.5, "°C")
+    fields[_text(v, CONF_HP_KW_MINUS15)] = selector.TextSelector()
+    fields[vol.Required(CONF_HEATING_CURVE_SLOPE, default=_d(v, CONF_HEATING_CURVE_SLOPE, 0.0))] = _num(
+        0, 2, 0.05, "K/K"
+    )
     fields[vol.Required(CONF_HP_MIN_MODULATION, default=_d(v, CONF_HP_MIN_MODULATION, DEFAULT_HP_MIN_MODULATION))] = (
         _num(10, 100, 5, "%")
     )
@@ -604,6 +610,13 @@ def validate_section(step: str, data: dict[str, Any]) -> dict[str, str]:
     for key in topic_keys.get(step, ()):
         if not _valid_input_topic(data.get(key)):
             errors[key] = "invalid_input_topic"
+    if step == "buffer":
+        raw = str(data.get(CONF_HP_KW_MINUS15) or "").strip()
+        if raw:
+            try:
+                float(raw.replace(",", "."))
+            except ValueError:
+                errors[CONF_HP_KW_MINUS15] = "invalid_number"
     if step in ("buffer_heater", "dhw_heater"):
         prefix = step.replace("_heater", "")
         if not parse_steps(data.get(f"{prefix}_heater_steps_kw")):

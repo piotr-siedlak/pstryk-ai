@@ -1,80 +1,98 @@
-# 7-day simulation: heat-pump strategies
+# Simulation and benchmark of the heating strategies
 
-`scripts/simulate_week.py` replays a real week **hour by hour, as it would run live** (closed loop, model-predictive control):
+Two scripts replay real data **hour by hour, as it would run live** (closed loop, model-predictive control):
 
 * every hour the controller sees only the prices known at that time – today, plus tomorrow from 13:00 (Pstryk publication),
 * it plans, applies the decision for the current hour, and the "real" buffer moves on with the measured outdoor temperature,
-* the next hour starts from the resulting temperature (errors and re-planning are included, nothing is known in hindsight).
-
-Run it yourself (public data, no API key needed):
+* the next hour starts from the resulting temperature (re-planning included, nothing is known in hindsight).
 
 ```bash
-python scripts/simulate_week.py --lat 52.03 --lon 21.05
+python scripts/benchmark_heating.py              # 3 × 4 weeks (winter, spring, autumn), with the optimum bound
+python scripts/benchmark_heating.py --curve 0.4  # the same with a heating curve
+python scripts/simulate_week.py                  # the last 7 days
 ```
 
-Engine: `custom_components/pstryk_ai/optimization/simulation.py` (also covered by `tests/test_v050_boost.py` on synthetic weeks).
+Engine: `custom_components/pstryk_ai/optimization/simulation.py` (covered by `tests/test_v050_boost.py` and `tests/test_v060_physics.py`).
 
-## Strategies compared
+Data: PSE RCE (public) converted to a customer price with the default tariff – a stand-in for Pstryk prices, which cannot be fetched
+without a key – and the Open-Meteo archive temperature (Warsaw area). Model: 500 L buffer, heat-pump setpoint 35 °C, minimum 30 °C,
+9 kW_th / 3 kW_el heat pump, COP 3.0 (A7/W35), minimum modulation 30 %, building 0.2 kW/K, boost up to 55 °C, boost hours = cheapest
+40 % of the next 24 h.
+
+## Strategies
 
 | Strategy | Who decides | What Pstryk AI sends |
 |---|---|---|
-| `auto` (reference) | heat pump alone holds its setpoint (`Domyślna temperatura docelowa`) | nothing |
-| **`boost`** (*Tylko doładowanie*, default) | heat pump decides when and how; Pstryk AI only adds **100 % boosts in cheap hours** up to the boost temperature | `optimizer/buffer/boost` = 1/0 (+ optional command topic) |
-| `full` (*Pełne sterowanie*) | Pstryk AI decides every hour, incl. modulation 30/65/100 % | `should_heat`, `hp_modulation`, target |
+| heat pump alone (reference) | the heat pump holds its setpoint | nothing |
+| **Tylko doładowanie** (`boost`, default) | the heat pump; Pstryk AI adds **100 % boosts in cheap hours** up to an optimised temperature | `optimizer/buffer/boost` = 1/0, `boost_target` |
+| Pełne sterowanie (`full`) | Pstryk AI every hour, incl. modulation | `should_heat`, `hp_modulation`, target |
+| optimum (bound) | perfect foresight: one plan over the whole month with every price known | – (not achievable) |
 
-## Result – real data, 09–15.10.2026 (168 h)
+## Result – 3 × 4 weeks of real data (v0.6.0)
 
-Data: PSE RCE (public) converted to a customer price with the default tariff – a stand-in for Pstryk prices, which cannot be fetched
-without a key – price 0.01 / 0.76 / 1.87 zł/kWh (min/avg/max); Open-Meteo outdoor temperature −0.2 … 14.4 °C (avg 8.8 °C).
-Model: 500 L buffer, setpoint 35 °C, min 30 °C, heat pump 9 kW_th / 3 kW_el, COP 3.0 (A7/W35), building 0.25 kW/K, boost to 55 °C,
-candidate hours = cheapest 40 % of the next 24 h.
+Costs corrected for the different heat content at the end of the period.
 
-| Strategy | Cost | Saving vs heat pump alone | Electricity | Cost of heat | Hours below min | Compressor starts | Boost hours |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| auto (heat pump alone) | 103.73 zł | – | 126.7 kWh | 0.296 zł/kWh | 0 | 1 | – |
-| **boost (default)** | **91.19 zł** | **12.54 zł (12 %)** | 140.9 kWh | 0.258 zł/kWh | **0** | 13 | 23 |
-| full control | 80.63 zł* | 23.10 zł (22 %) | 130.9 kWh | 0.229 zł/kWh | 0 | 22 | – |
+**Fixed heat-pump setpoint**
 
-\* corrected for a slightly different buffer temperature at the end of the week.
+| Period | Heat pump alone | Boost only | Full control | Optimum | Hours below minimum |
+|---|---:|---:|---:|---:|---:|
+| Winter 05.01–01.02 (avg −7.8 °C, min −23 °C) | 1434.36 zł | **1398.29 zł (−2.5 %)** | 1293.20 zł (−9.8 %) | 1292.43 zł | 0 / 0 / 0 |
+| Spring 16.03–12.04 (prices down to −0.73 zł) | 305.03 zł | **242.47 zł (−20.5 %)** | 207.89 zł (−31.8 %) | 207.00 zł | 0 / 0 / 0 |
+| Autumn 14.09–11.10 | 183.51 zł | **121.52 zł (−33.8 %)** | 97.63 zł (−46.8 %) | 97.90 zł | 0 / 0 / 0 |
 
-Per day (zł):
+**With a heating curve (slope 0.4 K/K)**
 
-| Day | auto | boost | full | boost hours (local) |
-|---|---:|---:|---:|---|
-| Fri 09.10 | 7.11 | 4.12 | 3.04 | 04, 12–15 (0.01–0.37 zł) |
-| Sat 10.10 | 6.25 | 4.91 | 4.69 | 04, 12–13 |
-| Sun 11.10 | 8.84 | 6.53 | 5.51 | 13–14 |
-| Mon 12.10 | 21.79 | 19.81 | 17.30 | 13–15 |
-| Tue 13.10 | 21.60 | 21.34 | 17.92 | 03–04, 12 |
-| Wed 14.10 | 17.00 | 15.96 | 14.76 | 04–05, 16 |
-| Thu 15.10 | 21.14 | 18.52 | 16.83 | 05, 12–14 |
+| Period | Heat pump alone | Boost only | Full control | Optimum |
+|---|---:|---:|---:|---:|
+| Winter | 1512.66 zł | **1470.37 zł (−2.8 %)** | 1368.55 zł (−9.5 %) | 1366.30 zł |
+| Spring | 292.50 zł | **226.67 zł (−22.5 %)** | 193.94 zł (−33.7 %) | 193.38 zł |
+| Autumn | 152.33 zł | **97.30 zł (−36.1 %)** | 76.01 zł (−50.1 %) | 75.82 zł |
 
-Sensitivity of `boost` (same week):
+* **Full control is within 0.1–0.4 % of the perfect-foresight optimum** in every season. Day-ahead prices are enough; a longer horizon,
+  a better price forecast or a heavier solver cannot save more with this model.
+* **Boost only** keeps the heat pump in charge and still saves 20–36 % outside deep winter. In deep frost there is little to gain
+  with boosts: the heat pump already runs most of the day at reduced output and a hotter tank costs COP.
 
-| Boost temperature | cheapest 25 % | cheapest 40 % |
-|---|---:|---:|
-| 45 °C | 5.65 zł | 6.80 zł |
-| 50 °C | 8.76 zł | 10.21 zł |
-| 55 °C | 10.83 zł | **12.54 zł** |
+## Old (v0.5.0) vs new (v0.6.0) algorithm
 
-## Reading the result
-* **Boost keeps the heat pump in charge.** Comfort never depends on Pstryk AI: without a boost the heat pump does exactly what it
-  does today. Zero hours below the minimum in every run.
-* Boosts are used only where they pay off. A boost runs at a higher water temperature (lower COP), so it is worth it only when the
-  price spread is larger than the COP loss. With a 30 % spread (e.g. 0.77 vs 1.10 zł) **no boost** is planned – the reason says
-  *"doładowanie się nie opłaca w horyzoncie"*; with midday dips or negative prices the buffer is charged to 55 °C.
-* Electricity use goes **up** (+11 %) while cost goes **down** – the heat is bought when it is cheap and stored.
-* Full control saves more (it can also *lower* the heat pump's work at expensive hours and modulate) but takes over the decisions
-  and starts the compressor more often. Choose it with the select *Strategia sterowania pompą* if you want it.
-* Caveats: one week, one building model, RCE-based prices instead of real Pstryk prices, perfect heat-pump behaviour in the model.
-  Treat the numbers as an order of magnitude; the panel shows the live savings estimate for your settings.
+Both drive the **same realistic heat pump** (output falls in frost, better COP at part load, cycling losses, optionally a heating curve).
+The old planner assumed full output at any temperature, constant efficiency at any load and a fixed minimum.
+
+| Period | Boost only v0.5 → v0.6 | Full control v0.5 → v0.6 |
+|---|---|---|
+| Winter | 1421.7 → **1398.3 zł** (saving vs heat pump alone 12.7 → **36.1 zł**) | 1338.1 zł with **62 h below minimum** (up to 3.3 K) → **1293.7 zł, 0 h** |
+| Spring | 245.0 → **242.5 zł** | 218.2 zł (1 h below) → **207.6 zł** (−4.9 %) |
+| Autumn | 125.3 → **121.6 zł** (−3.0 %) | 99.3 → **97.6 zł** |
+| Winter, heating curve | 1487.8 → **1470.4 zł** | 1338.1 zł with **258 h below the required temperature** (up to 10 K) → 1369.5 zł, **0 h** |
+| Spring, heating curve | 229.9 → **226.7 zł** | 218.2 → **193.6 zł** (−11.3 %) |
+| Autumn, heating curve | 102.9 → **97.4 zł** (−5.3 %) | 99.3 → **75.3 zł** (−24.2 %) |
+
+What changed the result:
+* **Frost**: the old planner let the buffer drift down expecting 9 kW to recover it – at −20 °C the heat pump gives ~6 kW, so comfort
+  failed for hours. The new one pre-charges in time.
+* **Boost temperature**: the old boost always went to 55 °C. The new one chooses 40–55 °C per situation and skips boosts whose COP
+  loss would eat the gain – in winter it boosted half as often (70 vs 136 h) and saved almost 3× more.
+* **Part load and cycling**: running long at low power beats short full-power bursts; 5 modulation steps instead of 3.
+* **Heating curve**: in mild weather the buffer may run cooler (better COP, lower losses), in frost it must be hotter.
+
+## Last 7 days (10–16.10.2026)
+
+| Strategy | Cost | Saving | Hours below minimum | Boost hours |
+|---|---:|---:|---:|---:|
+| heat pump alone | 108.59 zł | – | 0 | – |
+| **boost only** | **98.68 zł** | **−9.1 %** | 0 | 21 |
+| full control | 85.32 zł | −21.4 % | 0 | – |
+
+## Caveats
+RCE-based prices instead of real Pstryk prices; one building and heat-pump model; the simulated "reality" uses the same physics as the
+planner (old vs new compares two planners on that physics). Treat the numbers as an order of magnitude – the panel shows the live savings
+estimate for your settings. Set *Moc grzewcza przy −15 °C* and the heating curve to match your heat pump for the best plans.
 
 ---
 
 ## 🇵🇱 Podsumowanie
-Symulacja 7 dni na prawdziwych danych (09–15.10.2026), godzina po godzinie, z cenami znanymi tylko do chwili decyzji:
-
-* **Tylko doładowanie (domyślnie)** – pompa decyduje sama, Pstryk AI tylko włącza 100 % do 55 °C w tanich godzinach:
-  **91,19 zł zamiast 103,73 zł (−12 %)**, 0 godzin poniżej minimum, 23 godziny doładowania w tygodniu.
-* **Pełne sterowanie** – 80,63 zł (−22 %), ale Pstryk AI przejmuje decyzje i częściej uruchamia sprężarkę.
-* Przy małej różnicy cen (ok. 30 %) doładowanie się nie opłaca (niższy COP przy 55 °C) i nie jest planowane.
+* Symulacja 3 × 4 tygodnie (zima, wiosna, jesień 2026) na prawdziwych danych, godzina po godzinie, bez wiedzy o przyszłości.
+* **Tylko doładowanie** (domyślnie): −2,5 % zimą, −20,5 % wiosną, −33,8 % jesienią względem samej pompy, zawsze 0 godzin poniżej minimum.
+* **Pełne sterowanie**: −9,8 % / −31,8 % / −46,8 % i tylko 0,1–0,4 % od teoretycznego optimum (pełna wiedza o cenach całego miesiąca).
+* Nowy algorytm (v0.6) zna fizykę pompy: spadek mocy na mrozie, lepszy COP przy niższej mocy, straty taktowania, krzywą grzewczą,
+  i sam dobiera temperaturę doładowania (40–55 °C). Stary w mroźnym styczniu dopuszczał 62 godziny poniżej minimum (z krzywą grzewczą 258).

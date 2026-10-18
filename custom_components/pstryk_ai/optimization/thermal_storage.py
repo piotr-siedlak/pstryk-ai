@@ -15,8 +15,17 @@ Energy balance per hour (kWh_th):
     C · ΔT = Q_hp + Q_heater − Q_demand − U_loss · (T − T_room)
     C      = volume_l · 0.001163 kWh/(l·K)
 
-* Heat pump electricity = Q_hp / COP(T_out, T_supply ≈ T + 5 K); the heat pump
-  cannot heat above ``hp_max_t``.
+* Heat pump electricity = Q_hp / COP(T_out, T_supply); the heat pump cannot heat
+  above ``hp_max_t``. Heat-pump physics (v0.6):
+
+  - **capacity falls in frost**: output at −15 °C from the options, otherwise a
+    generic −1.2 %/K below +7 °C (typical air/water datasheets);
+  - **part load**: the condenser lift scales with power – T_supply = bottom
+    layer + 5 K × power fraction – so an inverter is more efficient at 30 %;
+  - **cycling** below the minimum modulation (on/off in the hour) loses
+    efficiency per EN 14825: COP × CR / (Cc·CR + 1 − Cc), Cc = 0.9;
+  - optional **heating curve**: the heat pump's setpoint and the comfort
+    minimum follow the outdoor temperature (``curve_slope`` K per K below 0 °C).
 * Electric heater electricity = Q_heater / efficiency; gas heater fuel cost =
   Q_heater / efficiency · fuel_price.
 * Electricity cost uses the (risk-adjusted) buy price; with PV surplus the first
@@ -52,6 +61,11 @@ GRID_K = 0.5
 ROOM_T = 20.0
 SUPPLY_DELTA = 5.0
 HEATER_USE_PENALTY = 0.005  # PLN per kWh_th – prefers the heat pump when costs are equal
+CYCLING_CC = 0.9  # EN 14825 degradation coefficient (air/water) for on/off cycling
+DERATE_PER_K = 0.012  # generic capacity loss per K below +7 °C
+DERATE_REF_T = 7.0
+MIN_CAPACITY_SHARE = 0.4
+CURVE_REF_T = 0.0  # the configured target/minimum apply at this outdoor temperature
 
 
 def thermal_capacity_kwh_per_k(volume_l: float) -> float:
@@ -120,10 +134,51 @@ class BufferConfig:
     legionella_penalty_pln: float = 30.0
     stratification_k: float = 0.0  # (top − bottom) / 2 measured now; top ≈ mean + this
     hp_levels: tuple[float, ...] = (1.0,)  # heat-pump power levels (fractions); (0.3, 0.65, 1.0) = inverter
+    # --- heat-pump physics (v0.6)
+    hp_kw_at_minus15: float | None = None  # heat output at −15 °C (None = generic derating)
+    curve_slope: float = 0.0  # heating curve: setpoint/minimum + slope · (0 °C − T_out); 0 = fixed
 
     @property
     def capacity(self) -> float:
         return thermal_capacity_kwh_per_k(self.volume_l)
+
+    @property
+    def min_level(self) -> float:
+        """Lowest continuous heat-pump power fraction (below it the compressor cycles)."""
+        return max(0.05, min(1.0, min(self.hp_levels))) if self.hp_levels else 1.0
+
+
+def hp_capacity_kw(cfg: BufferConfig, t_out: float) -> float:
+    """Maximum heat output of the heat pump at this outdoor temperature."""
+    nominal = cfg.hp_thermal_kw
+    if t_out >= DERATE_REF_T or nominal <= 0:
+        return nominal
+    if cfg.hp_kw_at_minus15 is not None and cfg.hp_kw_at_minus15 > 0:
+        slope = (nominal - cfg.hp_kw_at_minus15) / (DERATE_REF_T + 15.0)
+        value = nominal - slope * (DERATE_REF_T - t_out)
+    else:
+        value = nominal * (1.0 - DERATE_PER_K * (DERATE_REF_T - t_out))
+    return max(MIN_CAPACITY_SHARE * nominal, min(nominal, value))
+
+
+def min_at(cfg: BufferConfig, t_out: float) -> float:
+    """Comfort minimum (top layer) at this outdoor temperature (heating curve)."""
+    if not cfg.curve_slope:
+        return cfg.min_t
+    return max(ROOM_T + 2.0, min(cfg.max_t - 2.0, cfg.min_t + cfg.curve_slope * (CURVE_REF_T - t_out)))
+
+
+def setpoint_at(cfg: BufferConfig, t_out: float) -> float:
+    """The heat pump's own setpoint at this outdoor temperature (heating curve)."""
+    value = cfg.target_t + cfg.curve_slope * (CURVE_REF_T - t_out) if cfg.curve_slope else cfg.target_t
+    hi = min(cfg.max_t, cfg.hp_max_t if cfg.hp_max_t is not None else cfg.max_t)
+    return max(min_at(cfg, t_out) + 1.0, min(hi, value))
+
+
+def part_load_factor(ratio: float) -> float:
+    """EN 14825 cycling loss: COP multiplier at capacity ratio ``ratio`` (0–1)."""
+    cr = max(0.02, min(1.0, ratio))
+    return cr / (CYCLING_CC * cr + 1.0 - CYCLING_CC)
 
 
 def _local_hhmm(moment: datetime | None) -> str:
@@ -177,9 +232,10 @@ def _step2(cfg: BufferConfig, cop: CopModel, t: float, hp_on: bool | float, heat
     hp_limit = cfg.hp_max_t if cfg.hp_max_t is not None else cfg.max_t
     hp_limit = min(hp_limit, cfg.max_t)
     level = float(hp_on)
+    cap_hp = hp_capacity_kw(cfg, h.t_out)
     if level > 0:
         # may still cover losses/demand at the limit (keeps the run going)
-        q_hp = max(0.0, min(cfg.hp_thermal_kw * level, (hp_limit - t) * cap + need))
+        q_hp = max(0.0, min(cap_hp * level, (hp_limit - t) * cap + need))
     q_heat = 0.0
     if heater_kw > 0 and cfg.heater is not None:
         h_limit = min(cfg.heater.max_t if cfg.heater.max_t is not None else cfg.max_t, cfg.max_t)
@@ -187,7 +243,15 @@ def _step2(cfg: BufferConfig, cop: CopModel, t: float, hp_on: bool | float, heat
     t_next = t + (q_hp + q_heat - need) / cap
     # the heat pump heats the (colder) bottom water: supply ≈ bottom layer + ΔT
     bottom = (t + t_next) / 2 - max(0.0, min(cfg.stratification_k, 8.0))
-    c = cop.cop(h.t_out, bottom + SUPPLY_DELTA)
+    if q_hp > 0 and cap_hp > 0:
+        ratio = q_hp / cap_hp
+        min_level = cfg.min_level
+        run = max(ratio, min_level)  # below the minimum the compressor runs at it, on/off
+        c = cop.cop(h.t_out, bottom + SUPPLY_DELTA * run)
+        if ratio < min_level - 1e-9:
+            c = max(cop.min_cop, c * part_load_factor(ratio / min_level))
+    else:
+        c = cop.cop(h.t_out, bottom + SUPPLY_DELTA)
     e_hp = q_hp / c if q_hp > 0 else 0.0
     if cfg.hp_electric_kw > 0:
         e_hp = min(e_hp, cfg.hp_electric_kw * 1.5 * max(level, 0.0))
@@ -270,7 +334,7 @@ def simulate(
         steps.append(
             BufferStep(
                 slot.start,
-                min(1.0, r.q_hp / cfg.hp_thermal_kw) if r.q_hp > 0 and cfg.hp_thermal_kw > 0 else 0.0,
+                float(hp_on) if r.q_hp > 0 else 0.0,
                 t,
                 r.t_next,
                 r.e_hp + r.e_heater,
@@ -293,29 +357,42 @@ def _thermostat_actions(
 ) -> list[tuple[float, float]]:
     """Non-optimised reference with the SAME minimum comfort.
 
-    An ordinary on/off thermostat: heat at full power when the top layer falls
-    to min + 1 K, stop at min + 6 K (or the target, whichever is lower). Uses the
-    heat pump when allowed, otherwise the largest heater stage. Comparing with a
-    thermostat that keeps a higher temperature would inflate the savings.
+    An ordinary thermostat: heat when the top layer falls to min + 1 K, stop at
+    min + 6 K (or the target, whichever is lower). Uses the heat pump when
+    allowed – an inverter at the lowest power level that still charges, like
+    its own controller would – otherwise the largest heater stage. Comparing
+    with a thermostat that keeps a higher temperature or runs at full power
+    would inflate the savings.
     """
     actions: list[tuple[float, float]] = []
     t = t0
     strat = max(0.0, min(cfg.stratification_k, 8.0))
-    low = cfg.min_t + 1.0
-    high = min(cfg.max_t, max(low + 2.0, min(cfg.target_t, cfg.min_t + 6.0)))
-    on = t + strat <= low
+    on = None
     big = cfg.heater.stages[-1] if cfg.heater is not None else 0.0
+    levels = sorted({max(0.05, min(1.0, x)) for x in (cfg.hp_levels or (1.0,))})
     for i in range(n):
         src = hours[i]
         h = src if isinstance(src, _Hour) else _Hour(src, heat_demand_kw(cfg, src), 0.0, 0.0, 0.0, True, None, None)
+        floor = min_at(cfg, h.t_out)
+        low = floor + 1.0
+        high = min(cfg.max_t, max(low + 2.0, min(setpoint_at(cfg, h.t_out), floor + 6.0)))
+        if on is None:
+            on = t + strat <= low
         if t + strat <= low:
             on = True
         elif t + strat >= high:
             on = False
         use_hp = on and h.hp_available and cfg.hp_enabled
         heater = big if on and not use_hp else 0.0
-        actions.append((1.0 if use_hp else 0.0, heater))
-        t = _step2(cfg, cop, t, 1.0 if use_hp else 0.0, heater, h).t_next
+        level = 0.0
+        if use_hp:
+            level = levels[-1]
+            for lv in levels:  # lowest level that still charges by ≥ 0.5 K
+                if _step2(cfg, cop, t, lv, 0.0, h).t_next >= t + 0.5:
+                    level = lv
+                    break
+        actions.append((level, heater))
+        t = _step2(cfg, cop, t, level, heater, h).t_next
     return actions
 
 
@@ -386,8 +463,9 @@ def plan_buffer(
     )
     n = len(hours)
     strat = max(0.0, min(cfg.stratification_k, 8.0))
+    mins = [min_at(cfg, h.t_out) for h in hours]
 
-    lo = min(cfg.min_t - 5.0, current_t)
+    lo = min(min(mins) - 5.0, current_t)
     hi = max(cfg.max_t, current_t)
     grid_n = math.ceil((hi - lo) / GRID_K) + 1
 
@@ -401,7 +479,7 @@ def plan_buffer(
     avg_buy = sum(h.buy for h in hours) / n
     candidates = []
     if cfg.hp_enabled:
-        avg_cop = sum(cop.cop(h.t_out, cfg.target_t + SUPPLY_DELTA) for h in hours) / n
+        avg_cop = sum(cop.cop(h.t_out, setpoint_at(cfg, h.t_out) + SUPPLY_DELTA) for h in hours) / n
         candidates.append(avg_buy / max(avg_cop, 1.0))
     if cfg.heater is not None:
         eff = max(0.05, cfg.heater.efficiency)
@@ -436,8 +514,8 @@ def plan_buffer(
                         continue
                     c = cost + r.cost + HEATER_USE_PENALTY * r.q_heater
                     top_next = r.t_next + strat
-                    if top_next < cfg.min_t:
-                        c += (cfg.min_t - top_next) * cfg.comfort_penalty_pln_per_kh
+                    if top_next < mins[i]:
+                        c += (mins[i] - top_next) * cfg.comfort_penalty_pln_per_kh
                     if h.ready_t is not None and top_next < h.ready_t:
                         c += (h.ready_t - top_next) * cfg.ready_penalty_pln_per_k
                     if on > 0 and mode == 0:
@@ -493,7 +571,7 @@ def plan_buffer(
                 break
             first_stop = s.start + timedelta(hours=1)
             peak = s.temperature_end
-        target_temperature = round(min(cfg.max_t, max(cfg.min_t, peak + strat)) * 2) / 2
+        target_temperature = round(min(cfg.max_t, max(mins[0], peak + strat)) * 2) / 2
     duration = (first_stop - first_start).total_seconds() / 3600 if first_start and first_stop else 0.0
 
     conf_values = [
@@ -507,9 +585,9 @@ def plan_buffer(
     should_heat = bool(hp_on_list[0])
     heater_now = steps[0].heater_kw
     heater_hours = [s for s in steps if s.heater_kw > 0]
-    min_top = min(s.temperature_end for s in steps) + strat
+    min_margin = min(s.temperature_end + strat - m for s, m in zip(steps, mins, strict=True))
     reason = _explain(cfg, cop, current_t, strat, hours, steps, usable, should_heat, heater_now, heating, first_start)
-    if min_top < cfg.min_t:
+    if min_margin < 0:
         reason += "; uwaga: prognozowany spadek poniżej minimum"
     missed_ready = [
         h
@@ -544,7 +622,7 @@ def plan_buffer(
         optimization_confidence=confidence,
         optimization_reason=reason,
         mode="advisory" if advisory else "control",
-        feasible=min_top >= cfg.min_t - 0.5 and not missed_ready,
+        feasible=min_margin >= -0.5 and not missed_ready,
         steps=steps,
     )
     plan.heater_should_run = heater_now > 0
@@ -582,7 +660,7 @@ def _explain(
     prices = sorted(h.buy for h in hours)
     cheap_limit = prices[max(0, len(prices) // 4 - 1)]
     idle = _step2(cfg, cop, current_t, 0.0, 0.0, hours[0])
-    forced = idle.t_next + strat < cfg.min_t + 0.2
+    forced = idle.t_next + strat < min_at(cfg, hours[0].t_out) + 0.2
     ready_forced = hours[0].ready_t is not None and idle.t_next + strat < hours[0].ready_t
     level = steps[0].heat_fraction
     power = f" (moc {round(level * 100)}%)" if 0 < level < 0.99 else ""
